@@ -1,0 +1,2592 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DAFTAR NILAI PAI - SDN 2 PONDOKPANJANG</title>
+
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        navy: {
+                            800: '#142d52',
+                            900: '#0f2544',
+                            950: '#09182d',
+                        },
+                        brandRed: '#d92525',
+                        brandGold: '#fbbf24',
+                        bgSoft: '#f3f5ed',
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- SheetJS (XLSX) CDN for Excel Import/Export -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+    <!-- Alpine.js CDN for reactive state management -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+
+    <!-- Firebase SDK (Modular v11.6.1) -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, deleteDoc, onSnapshot, collection } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Konfigurasi Firebase proyek Anda (isi jika dijalankan di luar lingkungan otomatis / GitHub Pages)
+        window.CUSTOM_FIREBASE_CONFIG = window.CUSTOM_FIREBASE_CONFIG || {
+            apiKey: "AIzaSyAyFwCi1Co8fDXB84lGMto22J1GrjlYMXo",
+            authDomain: "aplikasi-nilai-pai-enjat.firebaseapp.com",
+            projectId: "aplikasi-nilai-pai-enjat",
+            storageBucket: "aplikasi-nilai-pai-enjat.firebasestorage.app",
+            messagingSenderId: "611515296496",
+            appId: "1:611515296496:web:adcb3c6b14187a9540b035",
+            measurementId: "G-3H3RQTJ451"
+        };
+
+        window.firebaseModules = {
+            initializeApp,
+            getAuth,
+            signInAnonymously,
+            signInWithCustomToken,
+            getFirestore,
+            doc,
+            setDoc,
+            deleteDoc,
+            onSnapshot,
+            collection
+        };
+        window.dispatchEvent(new Event('firebase-ready'));
+    </script>
+
+    <!-- Font Awesome CDN for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f5ed;
+        }
+
+        [x-cloak] { display: none !important; }
+
+        /* Print Media Query for Official A4 Landscape Report */
+        @media print {
+            @page {
+                size: A4 landscape;
+                margin: 10mm;
+            }
+            body {
+                background-color: #ffffff !important;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+            .no-print {
+                display: none !important;
+            }
+            .print-only {
+                display: block !important;
+            }
+            .print-container {
+                width: 100% !important;
+                max-width: 100% !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                box-shadow: none !important;
+                border: none !important;
+            }
+            table {
+                font-size: 9px !important;
+                border-collapse: collapse !important;
+                width: 100% !important;
+            }
+            th, td {
+                border: 1px solid #000 !important;
+                padding: 3px 4px !important;
+            }
+        }
+    </style>
+</head>
+<body x-data="paiApp()" x-init="initData()" class="min-h-screen flex flex-col">
+
+    <!-- LOGIN & REGISTER OVERLAY (USERNAME & PASSWORD PER SEKOLAH) -->
+    <div x-show="!isAuthenticated" class="fixed inset-0 bg-navy-950/95 z-50 flex items-center justify-center p-4 no-print" x-cloak>
+        <div class="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 space-y-4 border-2 border-navy-800">
+            <div class="text-center space-y-1">
+                <div class="w-12 h-12 mx-auto bg-navy-900 text-yellow-400 rounded-xl flex items-center justify-center text-xl shadow">
+                    <i class="fa-solid" :class="authMode === 'login' ? 'fa-user-lock' : 'fa-user-plus'"></i>
+                </div>
+                <h2 class="text-lg font-extrabold text-navy-900 uppercase tracking-wide pt-1" x-text="authMode === 'login' ? 'Login Aplikasi PAI' : 'Daftar Akun Sekolah'"></h2>
+            </div>
+
+            <!-- Tab Masuk / Daftar Akun Baru -->
+            <div class="grid grid-cols-2 bg-gray-100 p-1 rounded-lg text-xs font-bold">
+                <button
+                    type="button"
+                    @click="authMode = 'login'; loginError = '';"
+                    :class="authMode === 'login' ? 'bg-navy-900 text-yellow-400 shadow' : 'text-gray-600 hover:text-navy-900'"
+                    class="py-1.5 rounded-md transition cursor-pointer">
+                    Masuk
+                </button>
+                <button
+                    type="button"
+                    @click="authMode = 'register'; loginError = '';"
+                    :class="authMode === 'register' ? 'bg-navy-900 text-yellow-400 shadow' : 'text-gray-600 hover:text-navy-900'"
+                    class="py-1.5 rounded-md transition cursor-pointer">
+                    Daftar Sekolah Baru
+                </button>
+            </div>
+
+            <!-- FORM LOGIN -->
+            <form x-show="authMode === 'login'" @submit.prevent="loginWithCredentials()" class="space-y-3.5 text-xs">
+                <div>
+                    <label class="font-bold text-gray-700 block mb-1">Username:</label>
+                    <input
+                        type="text"
+                        x-model="loginUsernameInput"
+                        placeholder="Masukkan username..."
+                        class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-semibold text-navy-900 focus:ring-2 focus:ring-navy-900 outline-none"
+                        autofocus>
+                </div>
+
+                <div>
+                    <label class="font-bold text-gray-700 block mb-1">Password:</label>
+                    <div class="relative">
+                        <input
+                            :type="showLoginPassword ? 'text' : 'password'"
+                            x-model="loginPasswordInput"
+                            placeholder="Masukkan password..."
+                            class="w-full border border-gray-300 rounded-lg px-3 py-2 pr-10 text-sm font-semibold focus:ring-2 focus:ring-navy-900 outline-none">
+                        <button
+                            type="button"
+                            @click="showLoginPassword = !showLoginPassword"
+                            class="absolute inset-y-0 right-0 px-3 text-gray-500 hover:text-navy-900 cursor-pointer">
+                            <i class="fa-solid" :class="showLoginPassword ? 'fa-eye-slash' : 'fa-eye'"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <p x-show="loginError" class="text-red-600 font-semibold" x-text="loginError"></p>
+                <p class="text-[11px] text-gray-500 bg-gray-50 border border-gray-200 rounded-lg p-2 text-center">
+                    Belum Punya Akun? Klik tab <strong class="text-navy-900">Daftar Sekolah Baru</strong>.
+                </p>
+
+                <button type="submit" :disabled="authLoading" class="w-full bg-brandRed hover:bg-red-700 text-white py-2.5 rounded-lg text-sm font-bold shadow transition flex items-center justify-center space-x-2 cursor-pointer">
+                    <i class="fa-solid fa-right-to-bracket"></i>
+                    <span x-text="authLoading ? 'Memeriksa...' : 'Masuk'"></span>
+                </button>
+            </form>
+
+            <!-- FORM REGISTER SEKOLAH BARU -->
+            <form x-show="authMode === 'register'" @submit.prevent="registerSchoolAccount()" class="space-y-3 text-xs">
+                <div>
+                    <label class="font-bold text-gray-700 block mb-1">Nama Sekolah:</label>
+                    <input
+                        type="text"
+                        x-model="registerSchoolName"
+                        placeholder="Contoh: SDN 2 PONDOKPANJANG"
+                        class="w-full border border-gray-300 rounded-lg px-3 py-2 text-xs font-bold uppercase text-navy-900 focus:ring-2 focus:ring-navy-900 outline-none">
+                </div>
+
+                <div>
+                    <label class="font-bold text-gray-700 block mb-1">Nama Guru PAI:</label>
+                    <input
+                        type="text"
+                        x-model="registerTeacherName"
+                        placeholder="Contoh: Enjat, S.Pd.I."
+                        class="w-full border border-gray-300 rounded-lg px-3 py-2 text-xs font-semibold text-navy-900 focus:ring-2 focus:ring-navy-900 outline-none">
+                </div>
+
+                <div>
+                    <label class="font-bold text-gray-700 block mb-1">Buat Username:</label>
+                    <input
+                        type="text"
+                        x-model="registerUsername"
+                        placeholder="Contoh: sdn2pdp (huruf/angka)"
+                        class="w-full border border-gray-300 rounded-lg px-3 py-2 text-xs font-mono font-bold text-navy-900 focus:ring-2 focus:ring-navy-900 outline-none">
+                </div>
+
+                <div>
+                    <label class="font-bold text-gray-700 block mb-1">Buat Password:</label>
+                    <div class="relative">
+                        <input
+                            :type="showLoginPassword ? 'text' : 'password'"
+                            x-model="registerPassword"
+                            placeholder="Minimal 4 karakter..."
+                            class="w-full border border-gray-300 rounded-lg px-3 py-2 pr-10 text-xs font-semibold focus:ring-2 focus:ring-navy-900 outline-none">
+                        <button
+                            type="button"
+                            @click="showLoginPassword = !showLoginPassword"
+                            class="absolute inset-y-0 right-0 px-3 text-gray-500 hover:text-navy-900 cursor-pointer">
+                            <i class="fa-solid" :class="showLoginPassword ? 'fa-eye-slash' : 'fa-eye'"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <p x-show="loginError" class="text-red-600 font-semibold" x-text="loginError"></p>
+
+                <button type="submit" :disabled="authLoading" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-2.5 rounded-lg text-sm font-bold shadow transition flex items-center justify-center space-x-2 cursor-pointer">
+                    <i class="fa-solid fa-user-check"></i>
+                    <span x-text="authLoading ? 'Mendaftarkan...' : 'Buat Akun & Masuk'"></span>
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- TOP HEADER -->
+    <header x-show="isAuthenticated" class="bg-[#f3f5ed] border-b border-gray-300 no-print sticky top-0 z-30 shadow-sm" x-cloak>
+        <div class="flex items-center justify-between px-4 py-3">
+            <div class="flex items-center space-x-4">
+                <button @click="sidebarOpen = !sidebarOpen" class="text-navy-900 hover:text-red-600 focus:outline-none p-1 rounded-lg cursor-pointer">
+                    <i class="fa-solid fa-bars text-2xl"></i>
+                </button>
+                <h1 class="text-lg md:text-xl font-extrabold text-navy-900 tracking-wider">
+                    DAFTAR NILAI : PENDIDIKAN AGAMA ISLAM
+                </h1>
+            </div>
+            <div>
+                <button @click="openModal('settings')" class="bg-navy-900 text-yellow-400 hover:bg-navy-800 px-4 py-2 rounded-lg text-sm font-semibold flex items-center space-x-2 transition shadow cursor-pointer">
+                    <i class="fa-solid fa-sliders text-yellow-400"></i>
+                    <span class="hidden sm:inline">Pengaturan Sekolah</span>
+                </button>
+            </div>
+        </div>
+        <!-- Cloud Sync Status Bar -->
+        <div class="bg-navy-900 text-white px-4 py-1 text-[11px] flex items-center justify-between gap-2">
+            <div class="flex items-center space-x-2">
+                <span class="w-2 h-2 rounded-full" :class="cloudStatus === 'connected' ? 'bg-emerald-400 animate-pulse' : (cloudStatus === 'error' ? 'bg-red-400' : 'bg-yellow-400')"></span>
+                <span x-text="cloudStatusText"></span>
+            </div>
+            <div class="flex items-center space-x-3 font-mono hidden sm:flex">
+                <span class="text-yellow-300" x-text="'Akun: ' + currentUsername"></span>
+                <span class="text-gray-300" x-show="cloudUserId" x-text="'ID Sesi: ' + cloudUserId"></span>
+            </div>
+        </div>
+    </header>
+
+    <div x-show="isAuthenticated" class="flex flex-1 overflow-hidden" x-cloak>
+
+        <!-- SIDEBAR -->
+        <aside
+            :class="sidebarOpen ? 'w-64' : 'w-0 sm:w-16 hidden sm:block'"
+            class="bg-navy-900 text-white transition-all duration-300 flex flex-col no-print z-20 flex-shrink-0 min-h-full">
+
+            <nav class="flex-1 py-4 px-2 space-y-6 overflow-y-auto">
+                <!-- Dashboard Active Button -->
+                <div>
+                    <button
+                        @click="selectMenu('dashboard')"
+                        :class="activeTab === 'dashboard' ? 'bg-brandRed text-white font-bold shadow-md' : 'text-gray-300 hover:bg-navy-800'"
+                        class="w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition duration-200 cursor-pointer">
+                        <i class="fa-solid fa-house text-lg"></i>
+                        <span x-show="sidebarOpen" class="text-base">Dashboard</span>
+                    </button>
+                </div>
+
+                <!-- Group 1: Data Siswa -->
+                <div class="space-y-1">
+                    <div x-show="sidebarOpen" class="px-4 text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2 flex items-center space-x-2">
+                        <i class="fa-solid fa-folder text-yellow-500"></i>
+                        <span>Data Siswa</span>
+                    </div>
+                    <button
+                        @click="selectMenu('data-siswa')"
+                        :class="activeTab === 'data-siswa' ? 'bg-navy-800 text-yellow-400 font-semibold' : 'text-gray-300 hover:bg-navy-800'"
+                        class="w-full flex items-center space-x-3 px-4 py-2.5 rounded-lg text-sm transition cursor-pointer">
+                        <i class="fa-solid fa-users w-5"></i>
+                        <span x-show="sidebarOpen">Input Data Siswa</span>
+                    </button>
+                    <button
+                        @click="selectMenu('cetak-siswa')"
+                        :class="activeTab === 'cetak-siswa' ? 'bg-navy-800 text-yellow-400 font-semibold' : 'text-gray-300 hover:bg-navy-800'"
+                        class="w-full flex items-center space-x-3 px-4 py-2.5 rounded-lg text-sm transition cursor-pointer">
+                        <i class="fa-solid fa-address-book w-5"></i>
+                        <span x-show="sidebarOpen">Cetak Data Siswa</span>
+                    </button>
+                </div>
+
+                <!-- Group 2: Penilaian Siswa -->
+                <div class="space-y-1">
+                    <div x-show="sidebarOpen" class="px-4 text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2 flex items-center space-x-2">
+                        <i class="fa-solid fa-clipboard-list text-yellow-500"></i>
+                        <span>Penilaian Siswa</span>
+                    </div>
+                    <button
+                        @click="selectMenu('tp')"
+                        :class="activeTab === 'tp' ? 'bg-navy-800 text-yellow-400 font-semibold' : 'text-gray-300 hover:bg-navy-800'"
+                        class="w-full flex items-center space-x-3 px-4 py-2.5 rounded-lg text-sm transition cursor-pointer">
+                        <i class="fa-solid fa-book-open w-5"></i>
+                        <span x-show="sidebarOpen">Tujuan Pembelajaran (TP)</span>
+                    </button>
+                    <button
+                        @click="selectMenu('input-nilai')"
+                        :class="activeTab === 'input-nilai' ? 'bg-navy-800 text-yellow-400 font-semibold' : 'text-gray-300 hover:bg-navy-800'"
+                        class="w-full flex items-center space-x-3 px-4 py-2.5 rounded-lg text-sm transition cursor-pointer">
+                        <i class="fa-solid fa-pen-to-square w-5"></i>
+                        <span x-show="sidebarOpen" :class="activeTab === 'input-nilai' ? 'text-yellow-400 font-bold' : ''">
+                            Input Nilai Siswa (NH/PTS/PAS)
+                        </span>
+                    </button>
+                    <button
+                        @click="selectMenu('cetak-nilai')"
+                        :class="activeTab === 'cetak-nilai' ? 'bg-navy-800 text-yellow-400 font-semibold' : 'text-gray-300 hover:bg-navy-800'"
+                        class="w-full flex items-center space-x-3 px-4 py-2.5 rounded-lg text-sm transition cursor-pointer">
+                        <i class="fa-solid fa-print w-5"></i>
+                        <span x-show="sidebarOpen">Cetak Nilai &amp; Rapor PAI</span>
+                    </button>
+                </div>
+            </nav>
+
+            <!-- Bottom Actions -->
+            <div class="p-3 border-t border-navy-800">
+                <button @click="resetToDefaultData()" class="w-full bg-red-950 hover:bg-red-900 text-red-200 border border-red-800 py-2 px-3 rounded-lg text-xs font-semibold flex items-center justify-center space-x-2 transition mb-2 cursor-pointer">
+                    <i class="fa-solid fa-rotate-right"></i>
+                    <span x-show="sidebarOpen">Reset Data Sample</span>
+                </button>
+                <button @click="logoutSimulated()" class="w-full bg-red-800 hover:bg-red-700 text-white py-2 px-3 rounded-lg text-xs font-semibold flex items-center justify-center space-x-2 transition cursor-pointer">
+                    <i class="fa-solid fa-right-from-bracket"></i>
+                    <span x-show="sidebarOpen">Keluar / Logout</span>
+                </button>
+            </div>
+        </aside>
+
+        <!-- MAIN CONTENT CONTAINER -->
+        <main x-show="sidebarOnlyMode" class="flex-1 bg-[#f3f5ed] p-6 flex items-center justify-center">
+            <div class="text-center max-w-sm space-y-2 text-gray-500">
+                <i class="fa-solid fa-arrow-left text-2xl text-navy-900"></i>
+                <p class="text-sm font-bold text-navy-900">Silakan pilih menu di Sidebar</p>
+                <p class="text-xs text-gray-500">Pilih menu pada panel sidebar di sebelah kiri untuk membuka halaman yang diinginkan.</p>
+            </div>
+        </main>
+
+        <main x-show="!sidebarOnlyMode" class="flex-1 overflow-y-auto p-4 md:p-6">
+
+            <!-- 1. DASHBOARD TAB -->
+            <div x-show="activeTab === 'dashboard'" class="space-y-6">
+                <!-- Top Dark Banner -->
+                <div class="bg-navy-900 text-white rounded-xl p-4 md:p-6 shadow-md flex flex-col md:flex-row items-center justify-between gap-4">
+                    <div class="flex items-center space-x-3">
+                        <div class="bg-navy-800 p-3 rounded-xl border border-navy-700">
+                            <i class="fa-solid fa-gauge-high text-yellow-400 text-2xl"></i>
+                        </div>
+                        <div>
+                            <span class="text-xs font-medium text-gray-300 block uppercase tracking-wider">Dashboard Utama</span>
+                            <h2 class="text-xl md:text-3xl font-black text-white tracking-wide" x-text="school.name"></h2>
+                        </div>
+                    </div>
+                    <div>
+                        <button
+                            @click="school.semester = school.semester === 'Semester 1 (Ganjil)' ? 'Semester 2 (Genap)' : 'Semester 1 (Ganjil)'; saveData();"
+                            class="bg-navy-950 hover:bg-black text-yellow-400 border border-yellow-500/40 px-5 py-2.5 rounded-full text-xs font-bold uppercase tracking-wider shadow flex items-center space-x-2 transition cursor-pointer">
+                            <i class="fa-solid fa-calendar-days text-yellow-400"></i>
+                            <span x-text="school.semester"></span>
+                            <i class="fa-solid fa-repeat text-xs opacity-75 ml-1"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Stat Cards (4 Columns) -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-5">
+                    <!-- Stat 1: Total Siswa -->
+                    <div class="bg-white rounded-xl p-5 border border-gray-200 shadow-sm flex justify-between items-start">
+                        <div>
+                            <p class="text-xs font-bold text-gray-500 uppercase tracking-wider">TOTAL SISWA</p>
+                            <h3 class="text-3xl font-black text-navy-900 mt-2" x-text="students.length"></h3>
+                            <p class="text-xs font-semibold text-emerald-600 mt-2 flex items-center">
+                                <i class="fa-solid fa-circle-check mr-1.5 text-xs"></i>
+                                Terdaftar di database
+                            </p>
+                        </div>
+                        <div class="bg-blue-50 text-blue-600 p-3.5 rounded-2xl">
+                            <i class="fa-solid fa-user-graduate text-2xl"></i>
+                        </div>
+                    </div>
+
+                    <!-- Stat 2: Tujuan Pembelajaran -->
+                    <div class="bg-white rounded-xl p-5 border border-gray-200 shadow-sm flex justify-between items-start">
+                        <div>
+                            <p class="text-xs font-bold text-gray-500 uppercase tracking-wider">TUJUAN PEMBELAJARAN</p>
+                            <h3 class="text-3xl font-black text-navy-900 mt-2" x-text="tpList.length"></h3>
+                            <p class="text-xs font-semibold text-blue-600 mt-2 flex items-center">
+                                <i class="fa-solid fa-book text-xs mr-1.5"></i>
+                                Elemen &amp; Bab PAI
+                            </p>
+                        </div>
+                        <div class="bg-emerald-50 text-emerald-600 p-3.5 rounded-2xl">
+                            <i class="fa-solid fa-book-bookmark text-2xl"></i>
+                        </div>
+                    </div>
+
+                    <!-- Stat 3: Rata-Rata Sekolah -->
+                    <div class="bg-white rounded-xl p-5 border border-gray-200 shadow-sm flex justify-between items-start">
+                        <div>
+                            <p class="text-xs font-bold text-gray-500 uppercase tracking-wider">RATA-RATA SEKOLAH</p>
+                            <h3 class="text-3xl font-black text-navy-900 mt-2" x-text="calculateSchoolAverage()"></h3>
+                            <p class="text-xs font-semibold text-amber-600 mt-2 flex items-center">
+                                <i class="fa-solid fa-chart-line text-xs mr-1.5"></i>
+                                Nilai Akhir (NA)
+                            </p>
+                        </div>
+                        <div class="bg-amber-50 text-amber-500 p-3.5 rounded-2xl">
+                            <i class="fa-solid fa-star text-2xl"></i>
+                        </div>
+                    </div>
+
+                    <!-- Stat 4: Kelas Terdata -->
+                    <div class="bg-white rounded-xl p-5 border border-gray-200 shadow-sm flex justify-between items-start">
+                        <div>
+                            <p class="text-xs font-bold text-gray-500 uppercase tracking-wider">KELAS TERDATA</p>
+                            <h3 class="text-3xl font-black text-navy-900 mt-2">6 Kelas</h3>
+                            <p class="text-xs font-semibold text-purple-600 mt-2 flex items-center">
+                                <i class="fa-solid fa-chalkboard-user text-xs mr-1.5"></i>
+                                Kelas 1 s.d Kelas 6
+                            </p>
+                        </div>
+                        <div class="bg-purple-50 text-purple-600 p-3.5 rounded-2xl">
+                            <i class="fa-solid fa-school text-2xl"></i>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Panel 'Akses Cepat Penilaian PAI' -->
+                <div class="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm">
+                    <div class="flex items-center space-x-2 mb-6">
+                        <i class="fa-solid fa-rocket text-red-600 text-xl"></i>
+                        <h3 class="text-lg font-bold text-navy-900">Akses Cepat Penilaian PAI</h3>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div @click="activeTab = 'input-nilai'" class="group bg-gray-50 hover:bg-navy-900 hover:text-white p-5 rounded-xl border border-gray-200 cursor-pointer transition duration-300 flex flex-col justify-between">
+                            <div>
+                                <div class="flex justify-between items-start mb-2">
+                                    <h4 class="font-bold text-navy-900 group-hover:text-white text-base">Input Nilai 5 Elemen</h4>
+                                    <i class="fa-solid fa-arrow-right text-gray-400 group-hover:text-yellow-400 transition transform group-hover:translate-x-1"></i>
+                                </div>
+                                <p class="text-xs text-gray-600 group-hover:text-gray-300 leading-relaxed">
+                                    Al-Qur'an &amp; Hadits, Akidah, Akhlak, Fiqih, SPI (25 kolom NH).
+                                </p>
+                            </div>
+                        </div>
+
+                        <div @click="activeTab = 'data-siswa'" class="group bg-gray-50 hover:bg-navy-900 hover:text-white p-5 rounded-xl border border-gray-200 cursor-pointer transition duration-300 flex flex-col justify-between">
+                            <div>
+                                <div class="flex justify-between items-start mb-2">
+                                    <h4 class="font-bold text-navy-900 group-hover:text-white text-base">Input Data Siswa (Excel)</h4>
+                                    <i class="fa-solid fa-arrow-right text-gray-400 group-hover:text-yellow-400 transition transform group-hover:translate-x-1"></i>
+                                </div>
+                                <p class="text-xs text-gray-600 group-hover:text-gray-300 leading-relaxed">
+                                    Upload file Excel (.xlsx), unduh template, &amp; edit siswa per kelas.
+                                </p>
+                            </div>
+                        </div>
+
+                        <div @click="activeTab = 'tp'" class="group bg-gray-50 hover:bg-navy-900 hover:text-white p-5 rounded-xl border border-gray-200 cursor-pointer transition duration-300 flex flex-col justify-between">
+                            <div>
+                                <div class="flex justify-between items-start mb-2">
+                                    <h4 class="font-bold text-navy-900 group-hover:text-white text-base">Kelola TP PAI</h4>
+                                    <i class="fa-solid fa-arrow-right text-gray-400 group-hover:text-yellow-400 transition transform group-hover:translate-x-1"></i>
+                                </div>
+                                <p class="text-xs text-gray-600 group-hover:text-gray-300 leading-relaxed">
+                                    Atur Tujuan Pembelajaran per kelas 1-6.
+                                </p>
+                            </div>
+                        </div>
+
+                        <div @click="activeTab = 'cetak-nilai'" class="group bg-gray-50 hover:bg-navy-900 hover:text-white p-5 rounded-xl border border-gray-200 cursor-pointer transition duration-300 flex flex-col justify-between">
+                            <div>
+                                <div class="flex justify-between items-start mb-2">
+                                    <h4 class="font-bold text-navy-900 group-hover:text-white text-base">Cetak Rekap Nilai</h4>
+                                    <i class="fa-solid fa-arrow-right text-gray-400 group-hover:text-yellow-400 transition transform group-hover:translate-x-1"></i>
+                                </div>
+                                <p class="text-xs text-gray-600 group-hover:text-gray-300 leading-relaxed">
+                                    Cetak lembar penilaian resmi landscape &amp; export Excel.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mt-12 text-center pt-6 border-t border-gray-200">
+                        <h2 class="text-2xl font-black text-brandRed tracking-widest uppercase" x-text="'TAHUN AJARAN ' + school.year"></h2>
+                        <p class="text-sm italic font-medium text-gray-600 mt-1" x-text="school.author"></p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 2. DATA SISWA TAB -->
+            <div x-show="activeTab === 'data-siswa' || activeTab === 'cetak-siswa'" class="space-y-5">
+                <div class="bg-white rounded-xl p-5 border border-gray-200 shadow-sm flex flex-col lg:flex-row items-center justify-between gap-4">
+                    <div>
+                        <h3 class="text-xl font-bold text-navy-900 flex items-center space-x-2">
+                            <i class="fa-solid fa-users text-red-600"></i>
+                            <span>Data Siswa PAI (Kelas 1 - 6)</span>
+                        </h3>
+                        <p class="text-xs text-gray-500 mt-1">Kelola data siswa (urut abjad A–Z), import Excel (.xlsx / .csv), dan unduh template.</p>
+                    </div>
+
+                    <div class="flex flex-wrap items-center gap-2">
+                        <button @click="openModal('excel-import')" class="bg-emerald-700 hover:bg-emerald-800 text-white px-3.5 py-2 rounded-lg text-xs font-bold flex items-center space-x-2 transition shadow cursor-pointer">
+                            <i class="fa-solid fa-file-excel text-base"></i>
+                            <span>Import via Excel</span>
+                        </button>
+
+                        <button @click="downloadExcelTemplate()" class="bg-emerald-100 text-emerald-800 hover:bg-emerald-200 border border-emerald-300 px-3.5 py-2 rounded-lg text-xs font-bold flex items-center space-x-1.5 transition cursor-pointer">
+                            <i class="fa-solid fa-file-arrow-down text-base"></i>
+                            <span>Unduh Template .xlsx</span>
+                        </button>
+
+                        <button @click="openModal('add-student')" class="bg-navy-900 hover:bg-navy-800 text-white px-3.5 py-2 rounded-lg text-xs font-semibold flex items-center space-x-1.5 transition shadow cursor-pointer">
+                            <i class="fa-solid fa-user-plus"></i>
+                            <span>Tambah Siswa</span>
+                        </button>
+
+                        <button @click="openModal('delete-all')" class="bg-red-700 hover:bg-red-800 text-white px-3.5 py-2 rounded-lg text-xs font-bold flex items-center space-x-1.5 transition shadow cursor-pointer">
+                            <i class="fa-solid fa-trash-arrow-up"></i>
+                            <span>Hapus Semua</span>
+                        </button>
+
+                        <button @click="exportStudentsToExcel()" class="bg-blue-900 hover:bg-blue-800 text-white px-3.5 py-2 rounded-lg text-xs font-semibold flex items-center space-x-1.5 transition shadow cursor-pointer">
+                            <i class="fa-solid fa-download"></i>
+                            <span>Ekspor Excel</span>
+                        </button>
+
+                        <button @click="window.print()" class="bg-gray-800 hover:bg-black text-white px-3.5 py-2 rounded-lg text-xs font-semibold flex items-center space-x-1.5 transition shadow cursor-pointer">
+                            <i class="fa-solid fa-print"></i>
+                            <span>Cetak Data</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Filters -->
+                <div class="bg-white rounded-xl p-4 border border-gray-200 shadow-sm flex flex-col md:flex-row gap-4 justify-between items-center">
+                    <div class="flex items-center space-x-2 w-full md:w-auto">
+                        <label class="text-xs font-bold text-gray-600 uppercase">Kelas:</label>
+                        <select x-model="selectedClass" class="bg-gray-50 border border-gray-300 rounded-lg px-3 py-1.5 text-sm font-semibold focus:ring-2 focus:ring-navy-900 outline-none w-full md:w-48">
+                            <option value="All">Semua Kelas (1-6)</option>
+                            <template x-for="c in [1,2,3,4,5,6]">
+                                <option :value="'Kelas ' + c" x-text="'Kelas ' + c"></option>
+                            </template>
+                        </select>
+                    </div>
+                    <div class="w-full md:w-64">
+                        <input type="text" x-model="searchStudent" placeholder="Cari nama / NIS..." class="w-full bg-gray-50 border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-navy-900 outline-none">
+                    </div>
+                </div>
+
+                <!-- Printable Header only for print -->
+                <div class="hidden print-only mb-6">
+                    <div class="text-center border-b-2 border-black pb-3">
+                        <h2 class="text-lg font-bold uppercase" x-text="school.government"></h2>
+                        <h1 class="text-xl font-extrabold" x-text="school.name"></h1>
+                        <p class="text-xs" x-text="school.address"></p>
+                        <p class="text-[11px] italic" x-text="school.emailInfo"></p>
+                        <h3 class="text-sm font-bold uppercase mt-2">DAFTAR SISWA TERDATA - PENDIDIKAN AGAMA ISLAM</h3>
+                        <p class="text-xs">Tahun Ajaran: <span x-text="school.year"></span> | Filter: <span x-text="selectedClass"></span></p>
+                    </div>
+                </div>
+
+                <!-- Table -->
+                <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-sm">
+                            <thead class="bg-navy-900 text-white uppercase text-xs">
+                                <tr>
+                                    <th class="py-3 px-4 w-12 text-center">No</th>
+                                    <th class="py-3 px-4">NIS / NISN</th>
+                                    <th class="py-3 px-4">Nama Lengkap</th>
+                                    <th class="py-3 px-4 w-20 text-center">L/P</th>
+                                    <th class="py-3 px-4 w-28 text-center">Kelas</th>
+                                    <th class="py-3 px-4 text-center w-28 no-print">Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-200">
+                                <template x-for="(st, idx) in filteredStudents" :key="st.id">
+                                    <tr class="hover:bg-gray-50">
+                                        <td class="py-2.5 px-4 text-center font-medium text-gray-500" x-text="idx + 1"></td>
+                                        <td class="py-2.5 px-4 font-semibold text-gray-700" x-text="st.nis"></td>
+                                        <td class="py-2.5 px-4 font-bold text-navy-900" x-text="st.nama"></td>
+                                        <td class="py-2.5 px-4 text-center font-semibold" x-text="st.gender"></td>
+                                        <td class="py-2.5 px-4 text-center">
+                                            <span class="bg-blue-100 text-blue-800 text-xs font-bold px-2.5 py-0.5 rounded-full" x-text="st.kelas"></span>
+                                        </td>
+                                        <td class="py-2.5 px-4 text-center space-x-1 no-print">
+                                            <button @click="editStudent(st)" class="bg-amber-100 hover:bg-amber-200 text-amber-800 px-2.5 py-1 rounded text-xs font-bold transition cursor-pointer" title="Edit">
+                                                <i class="fa-solid fa-pen"></i>
+                                            </button>
+                                            <button @click="deleteStudent(st.id)" class="bg-red-100 hover:bg-red-200 text-red-700 px-2.5 py-1 rounded text-xs font-bold transition cursor-pointer" title="Hapus">
+                                                <i class="fa-solid fa-trash"></i>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                </template>
+                                <tr x-show="filteredStudents.length === 0">
+                                    <td colspan="6" class="text-center py-8 text-gray-500">Tidak ada data siswa yang ditemukan.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 3. TUJUAN PEMBELAJARAN (TP) TAB -->
+            <div x-show="activeTab === 'tp'" class="space-y-5">
+                <div class="bg-white rounded-xl p-5 border border-gray-200 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
+                    <div>
+                        <h3 class="text-xl font-bold text-navy-900 flex items-center space-x-2">
+                            <i class="fa-solid fa-book-open text-red-600"></i>
+                            <span>Tujuan Pembelajaran (TP) PAI Kelas 1 - 6</span>
+                        </h3>
+                        <p class="text-xs text-gray-500 mt-1">Kelola TP berdasarkan 5 Elemen PAI Kurikulum Merdeka</p>
+                    </div>
+                    <button @click="openModal('add-tp')" class="bg-navy-900 hover:bg-navy-800 text-white px-4 py-2 rounded-lg text-xs font-bold flex items-center space-x-2 shadow cursor-pointer">
+                        <i class="fa-solid fa-plus"></i>
+                        <span>Tambah TP Baru</span>
+                    </button>
+                </div>
+
+                <div class="bg-white rounded-xl p-4 border border-gray-200 shadow-sm flex flex-col md:flex-row gap-4 justify-between items-center">
+                    <div class="flex flex-wrap items-center gap-3 w-full md:w-auto">
+                        <div class="flex items-center space-x-2">
+                            <label class="text-xs font-bold text-gray-600 uppercase">Kelas:</label>
+                            <select x-model="tpFilterClass" class="bg-gray-50 border border-gray-300 rounded-lg px-3 py-1.5 text-sm font-semibold focus:ring-2 focus:ring-navy-900 outline-none">
+                                <option value="All">Semua Kelas (1-6)</option>
+                                <template x-for="c in [1,2,3,4,5,6]">
+                                    <option :value="'Kelas ' + c" x-text="'Kelas ' + c"></option>
+                                </template>
+                            </select>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <label class="text-xs font-bold text-gray-600 uppercase">Elemen:</label>
+                            <select x-model="tpFilterElement" class="bg-gray-50 border border-gray-300 rounded-lg px-3 py-1.5 text-sm font-semibold focus:ring-2 focus:ring-navy-900 outline-none">
+                                <option value="All">Semua Elemen</option>
+                                <template x-for="el in paiElements">
+                                    <option :value="el" x-text="el"></option>
+                                </template>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-sm">
+                            <thead class="bg-navy-900 text-white uppercase text-xs">
+                                <tr>
+                                    <th class="py-3 px-4 w-12 text-center">No</th>
+                                    <th class="py-3 px-4 w-24 text-center">Kelas</th>
+                                    <th class="py-3 px-4 w-24">Kode TP</th>
+                                    <th class="py-3 px-4 w-56">Elemen PAI</th>
+                                    <th class="py-3 px-4">Deskripsi Tujuan Pembelajaran</th>
+                                    <th class="py-3 px-4 text-center w-28">Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-200">
+                                <template x-for="(tp, idx) in filteredTP" :key="tp.id">
+                                    <tr class="hover:bg-gray-50">
+                                        <td class="py-2.5 px-4 text-center font-medium text-gray-500" x-text="idx + 1"></td>
+                                        <td class="py-2.5 px-4 text-center">
+                                            <span class="bg-navy-900 text-yellow-400 text-xs font-bold px-2.5 py-0.5 rounded-full" x-text="tp.kelas"></span>
+                                        </td>
+                                        <td class="py-2.5 px-4 font-bold text-navy-900" x-text="tp.kode"></td>
+                                        <td class="py-2.5 px-4 font-semibold text-gray-700" x-text="tp.elemen"></td>
+                                        <td class="py-2.5 px-4 text-gray-800" x-text="tp.deskripsi"></td>
+                                        <td class="py-2.5 px-4 text-center space-x-1">
+                                            <button @click="editTP(tp)" class="bg-amber-100 hover:bg-amber-200 text-amber-800 px-2.5 py-1 rounded text-xs font-bold transition cursor-pointer" title="Edit">
+                                                <i class="fa-solid fa-pen"></i>
+                                            </button>
+                                            <button @click="deleteTP(tp.id)" class="bg-red-100 hover:bg-red-200 text-red-700 px-2.5 py-1 rounded text-xs font-bold transition cursor-pointer" title="Hapus">
+                                                <i class="fa-solid fa-trash"></i>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                </template>
+                                <tr x-show="filteredTP.length === 0">
+                                    <td colspan="6" class="text-center py-8 text-gray-500">Tidak ada Tujuan Pembelajaran yang sesuai filter.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 4. INPUT NILAI SISWA TAB (25 KOLOM NH: 5 ELEMEN X 5 PENILAIAN) -->
+            <div x-show="activeTab === 'input-nilai'" class="space-y-5">
+                <div class="bg-white rounded-xl p-5 border border-gray-200 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
+                    <div>
+                        <h3 class="text-xl font-bold text-navy-900 flex items-center space-x-2">
+                            <i class="fa-solid fa-pen-to-square text-red-600"></i>
+                            <span>Input Nilai PAI (25 Kolom NH + PTS + PAS)</span>
+                        </h3>
+                        <p class="text-xs text-gray-500 mt-1">5 Elemen PAI x 5 Penilaian Harian (Total 25 Nilai Harian per Siswa) · NA = (Rerata NH + PTS + PAS) ÷ 3</p>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <button @click="saveAllScoresToCloud(); showToast('Nilai berhasil disimpan!')" class="bg-brandRed hover:bg-red-700 text-white px-4 py-2 rounded-lg text-xs font-bold flex items-center space-x-2 shadow cursor-pointer">
+                            <i class="fa-solid fa-floppy-disk"></i>
+                            <span>Simpan Nilai</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-xl p-4 border border-gray-200 shadow-sm flex flex-col md:flex-row items-center justify-between gap-4">
+                    <div class="flex items-center space-x-3 w-full md:w-auto">
+                        <label class="text-xs font-bold text-gray-700 uppercase">Pilih Kelas:</label>
+                        <select x-model="selectedInputClass" class="bg-navy-900 text-yellow-400 font-bold border border-navy-700 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-yellow-400 outline-none">
+                            <template x-for="c in [1,2,3,4,5,6]">
+                                <option :value="'Kelas ' + c" x-text="'Kelas ' + c"></option>
+                            </template>
+                        </select>
+                    </div>
+
+                    <div class="flex items-center space-x-2 text-xs text-gray-600">
+                        <span class="font-bold">Rumus NA:</span>
+                        <span class="bg-emerald-100 text-emerald-900 px-2.5 py-1 rounded font-bold">(NH + PTS + PAS) ÷ 3</span>
+                        <span class="bg-amber-100 text-amber-900 px-2.5 py-1 rounded font-bold" x-text="'KKM PAI: ' + school.kkm"></span>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-xs border-collapse min-w-[1500px]">
+                            <thead class="bg-navy-900 text-white uppercase tracking-wider sticky top-0 z-10">
+                                <tr>
+                                    <th rowspan="2" class="py-3 px-3 w-10 text-center border-r border-navy-800">No</th>
+                                    <th rowspan="2" class="py-3 px-3 w-44 border-r border-navy-800 sticky left-0 bg-navy-900 z-20">Nama Siswa</th>
+
+                                    <th colspan="6" class="py-2 px-2 text-center border-r border-navy-800 bg-emerald-900 text-yellow-300">1. Al-Qur'an &amp; Hadits</th>
+                                    <th colspan="6" class="py-2 px-2 text-center border-r border-navy-800 bg-blue-900 text-blue-200">2. Akidah</th>
+                                    <th colspan="6" class="py-2 px-2 text-center border-r border-navy-800 bg-amber-900 text-amber-200">3. Akhlak</th>
+                                    <th colspan="6" class="py-2 px-2 text-center border-r border-navy-800 bg-purple-900 text-purple-200">4. Fiqih</th>
+                                    <th colspan="6" class="py-2 px-2 text-center border-r border-navy-800 bg-rose-900 text-rose-200">5. SPI</th>
+
+                                    <th rowspan="2" class="py-3 px-2 text-center border-r border-navy-800 bg-blue-950 text-yellow-300 font-extrabold">Rerata NH</th>
+                                    <th rowspan="2" class="py-3 px-2 text-center border-r border-navy-800 bg-amber-950">PTS</th>
+                                    <th rowspan="2" class="py-3 px-2 text-center border-r border-navy-800 bg-purple-950">PAS</th>
+                                    <th rowspan="2" class="py-3 px-3 text-center border-r border-navy-800 bg-emerald-950 text-yellow-300 font-black">NA (/3)</th>
+                                    <th rowspan="2" class="py-3 px-2 text-center border-r border-navy-800 bg-emerald-950">Predikat</th>
+                                    <th rowspan="2" class="py-3 px-4 min-w-[240px]">Deskripsi Capaian</th>
+                                </tr>
+                                <tr class="bg-navy-800 text-[10px] text-center border-b border-navy-700">
+                                    <th class="py-1 px-1 border-r border-navy-700">Q1</th><th class="py-1 px-1 border-r border-navy-700">Q2</th><th class="py-1 px-1 border-r border-navy-700">Q3</th><th class="py-1 px-1 border-r border-navy-700">Q4</th><th class="py-1 px-1 border-r border-navy-700">Q5</th><th class="py-1 px-1 border-r border-navy-800 bg-emerald-800 font-bold text-yellow-300">Rata</th>
+                                    <th class="py-1 px-1 border-r border-navy-700">AQ1</th><th class="py-1 px-1 border-r border-navy-700">AQ2</th><th class="py-1 px-1 border-r border-navy-700">AQ3</th><th class="py-1 px-1 border-r border-navy-700">AQ4</th><th class="py-1 px-1 border-r border-navy-700">AQ5</th><th class="py-1 px-1 border-r border-navy-800 bg-blue-800 font-bold text-yellow-300">Rata</th>
+                                    <th class="py-1 px-1 border-r border-navy-700">AK1</th><th class="py-1 px-1 border-r border-navy-700">AK2</th><th class="py-1 px-1 border-r border-navy-700">AK3</th><th class="py-1 px-1 border-r border-navy-700">AK4</th><th class="py-1 px-1 border-r border-navy-700">AK5</th><th class="py-1 px-1 border-r border-navy-800 bg-amber-800 font-bold text-yellow-300">Rata</th>
+                                    <th class="py-1 px-1 border-r border-navy-700">FQ1</th><th class="py-1 px-1 border-r border-navy-700">FQ2</th><th class="py-1 px-1 border-r border-navy-700">FQ3</th><th class="py-1 px-1 border-r border-navy-700">FQ4</th><th class="py-1 px-1 border-r border-navy-700">FQ5</th><th class="py-1 px-1 border-r border-navy-800 bg-purple-800 font-bold text-yellow-300">Rata</th>
+                                    <th class="py-1 px-1 border-r border-navy-700">SP1</th><th class="py-1 px-1 border-r border-navy-700">SP2</th><th class="py-1 px-1 border-r border-navy-700">SP3</th><th class="py-1 px-1 border-r border-navy-700">SP4</th><th class="py-1 px-1 border-r border-navy-700">SP5</th><th class="py-1 px-1 border-r border-navy-800 bg-rose-800 font-bold text-yellow-300">Rata</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-200 text-gray-800 font-medium text-xs">
+                                <template x-for="(st, idx) in currentClassStudents" :key="st.id">
+                                    <tr class="hover:bg-amber-50/50">
+                                        <td class="py-2 px-2 text-center text-gray-500" x-text="idx + 1"></td>
+                                        <td class="py-2 px-3 font-bold text-navy-900 truncate max-w-[160px] sticky left-0 bg-white group-hover:bg-amber-50 shadow-sm" x-text="st.nama"></td>
+
+                                        <template x-for="i in [1,2,3,4,5]">
+                                            <td class="py-1 px-0.5 text-center border-r">
+                                                <input type="number" min="0" max="100" x-model.number="st.scores['q' + i]" @change="saveStudentToCloud(st)" class="w-10 text-center bg-emerald-50/60 border border-emerald-200 rounded py-1 text-xs font-semibold focus:bg-yellow-100 focus:outline-none">
+                                            </td>
+                                        </template>
+                                        <td class="py-1 px-1 text-center font-bold text-emerald-800 bg-emerald-100/70 border-r" x-text="calcElemAvg(st.scores, 'q')"></td>
+
+                                        <template x-for="i in [1,2,3,4,5]">
+                                            <td class="py-1 px-0.5 text-center border-r">
+                                                <input type="number" min="0" max="100" x-model.number="st.scores['aq' + i]" @change="saveStudentToCloud(st)" class="w-10 text-center bg-blue-50/60 border border-blue-200 rounded py-1 text-xs font-semibold focus:bg-yellow-100 focus:outline-none">
+                                            </td>
+                                        </template>
+                                        <td class="py-1 px-1 text-center font-bold text-blue-800 bg-blue-100/70 border-r" x-text="calcElemAvg(st.scores, 'aq')"></td>
+
+                                        <template x-for="i in [1,2,3,4,5]">
+                                            <td class="py-1 px-0.5 text-center border-r">
+                                                <input type="number" min="0" max="100" x-model.number="st.scores['ak' + i]" @change="saveStudentToCloud(st)" class="w-10 text-center bg-amber-50/60 border border-amber-200 rounded py-1 text-xs font-semibold focus:bg-yellow-100 focus:outline-none">
+                                            </td>
+                                        </template>
+                                        <td class="py-1 px-1 text-center font-bold text-amber-800 bg-amber-100/70 border-r" x-text="calcElemAvg(st.scores, 'ak')"></td>
+
+                                        <template x-for="i in [1,2,3,4,5]">
+                                            <td class="py-1 px-0.5 text-center border-r">
+                                                <input type="number" min="0" max="100" x-model.number="st.scores['fq' + i]" @change="saveStudentToCloud(st)" class="w-10 text-center bg-purple-50/60 border border-purple-200 rounded py-1 text-xs font-semibold focus:bg-yellow-100 focus:outline-none">
+                                            </td>
+                                        </template>
+                                        <td class="py-1 px-1 text-center font-bold text-purple-800 bg-purple-100/70 border-r" x-text="calcElemAvg(st.scores, 'fq')"></td>
+
+                                        <template x-for="i in [1,2,3,4,5]">
+                                            <td class="py-1 px-0.5 text-center border-r">
+                                                <input type="number" min="0" max="100" x-model.number="st.scores['sp' + i]" @change="saveStudentToCloud(st)" class="w-10 text-center bg-rose-50/60 border border-rose-200 rounded py-1 text-xs font-semibold focus:bg-yellow-100 focus:outline-none">
+                                            </td>
+                                        </template>
+                                        <td class="py-1 px-1 text-center font-bold text-rose-800 bg-rose-100/70 border-r" x-text="calcElemAvg(st.scores, 'sp')"></td>
+
+                                        <td class="py-2 px-2 text-center font-black text-blue-900 bg-blue-100/80 border-r text-xs" x-text="calcRerataNH(st.scores)"></td>
+
+                                        <td class="py-1 px-1 text-center border-r">
+                                            <input type="number" min="0" max="100" x-model.number="st.scores.pts" @change="saveStudentToCloud(st)" class="w-11 text-center bg-amber-50 border border-amber-300 rounded py-1 text-xs font-bold focus:bg-yellow-100 focus:outline-none">
+                                        </td>
+                                        <td class="py-1 px-1 text-center border-r">
+                                            <input type="number" min="0" max="100" x-model.number="st.scores.pas" @change="saveStudentToCloud(st)" class="w-11 text-center bg-purple-50 border border-purple-300 rounded py-1 text-xs font-bold focus:bg-yellow-100 focus:outline-none">
+                                        </td>
+
+                                        <td class="py-2 px-3 text-center font-black text-navy-900 bg-emerald-200/80 border-r text-sm" x-text="calcNA(st.scores)"></td>
+
+                                        <td class="py-2 px-2 text-center font-bold border-r">
+                                            <span
+                                                :class="{
+                                                    'bg-green-100 text-green-800': getPredikat(calcNA(st.scores)) === 'A',
+                                                    'bg-blue-100 text-blue-800': getPredikat(calcNA(st.scores)) === 'B',
+                                                    'bg-yellow-100 text-yellow-800': getPredikat(calcNA(st.scores)) === 'C',
+                                                    'bg-red-100 text-red-800': getPredikat(calcNA(st.scores)) === 'D'
+                                                }"
+                                                class="px-2 py-0.5 rounded text-xs font-extrabold"
+                                                x-text="getPredikat(calcNA(st.scores))">
+                                            </span>
+                                        </td>
+
+                                        <td class="py-2 px-3 text-[11px] text-gray-700 leading-tight" x-text="generateDescription(st)"></td>
+                                    </tr>
+                                </template>
+                                <tr x-show="currentClassStudents.length === 0">
+                                    <td colspan="36" class="text-center py-8 text-gray-500">Tidak ada data siswa untuk kelas ini.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 5. CETAK NILAI & RAPOR PAI TAB -->
+            <div x-show="activeTab === 'cetak-nilai'" class="space-y-5">
+                <div class="bg-white rounded-xl p-5 border border-gray-200 shadow-sm flex flex-col lg:flex-row items-center justify-between gap-4 no-print">
+                    <div>
+                        <h3 class="text-xl font-bold text-navy-900 flex items-center space-x-2">
+                            <i class="fa-solid fa-print text-red-600"></i>
+                            <span>Cetak Rekap Penilaian Resmi</span>
+                        </h3>
+                        <p class="text-xs text-gray-500 mt-1">Pratinjau lembar rekap nilai resmi landscape (Menampilkan Rata-rata 5 Elemen PAI)</p>
+                    </div>
+
+                    <div class="flex flex-wrap items-center gap-3">
+                        <div class="flex items-center space-x-1.5">
+                            <label class="text-xs font-bold text-gray-700">Tanggal Cetak:</label>
+                            <input
+                                type="text"
+                                x-model="printDateManual"
+                                @change="saveSchoolToCloud()"
+                                placeholder="Contoh: 21 November 2026"
+                                class="border border-gray-300 rounded-lg px-3 py-1.5 text-xs font-semibold text-navy-900 focus:ring-2 focus:ring-navy-900 outline-none w-44">
+                        </div>
+
+                        <select x-model="selectedPrintClass" class="bg-navy-900 text-yellow-400 font-bold border border-navy-700 rounded-lg px-3 py-2 text-xs">
+                            <template x-for="c in [1,2,3,4,5,6]">
+                                <option :value="'Kelas ' + c" x-text="'Cetak Kelas ' + c"></option>
+                            </template>
+                        </select>
+                        <button @click="exportStudentsToExcel(selectedPrintClass)" class="bg-emerald-700 hover:bg-emerald-800 text-white px-3.5 py-2 rounded-lg text-xs font-semibold flex items-center space-x-1.5 shadow cursor-pointer">
+                            <i class="fa-solid fa-file-excel"></i>
+                            <span>Export Excel (.xlsx)</span>
+                        </button>
+                        <button @click="window.print()" class="bg-brandRed hover:bg-red-700 text-white px-4 py-2 rounded-lg text-xs font-bold flex items-center space-x-2 shadow cursor-pointer">
+                            <i class="fa-solid fa-print"></i>
+                            <span>Cetak PDF / Print</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Official Printable Paper Container -->
+                <div class="bg-white p-6 md:p-8 rounded-xl border border-gray-300 shadow-lg print-container">
+                    <div class="border-b-4 border-double border-black pb-4 mb-6 text-center">
+                        <h3 class="text-base font-bold uppercase tracking-wider" x-text="school.government"></h3>
+                        <h2 class="text-xl md:text-2xl font-black uppercase tracking-wide mt-0.5" x-text="school.name"></h2>
+                        <p class="text-xs font-medium text-gray-800" x-text="school.address"></p>
+                        <p class="text-[11px] italic text-gray-600" x-text="school.emailInfo"></p>
+                    </div>
+
+                    <div class="text-center mb-6">
+                        <h3 class="text-lg font-black uppercase tracking-wider text-black">DAFTAR REKAPITULASI NILAI PENDIDIKAN AGAMA ISLAM (PAI)</h3>
+                        <p class="text-xs font-bold text-gray-700 uppercase mt-1">
+                            <span x-text="selectedPrintClass"></span> &bull; <span x-text="school.semester"></span> &bull; TAHUN AJARAN <span x-text="school.year"></span> &bull; KKM: <span x-text="school.kkm"></span>
+                        </p>
+                    </div>
+
+                    <table class="w-full text-left text-xs border-collapse border border-black">
+                        <thead>
+                            <tr class="bg-gray-100 text-center font-bold">
+                                <th class="border border-black p-2 w-8">NO</th>
+                                <th class="border border-black p-2 w-24">NIS</th>
+                                <th class="border border-black p-2">NAMA LENGKAP SISWA</th>
+                                <th class="border border-black p-2 w-10">L/P</th>
+                                <th class="border border-black p-2 w-12">QURAN</th>
+                                <th class="border border-black p-2 w-12">AKIDAH</th>
+                                <th class="border border-black p-2 w-12">AKHLAK</th>
+                                <th class="border border-black p-2 w-12">FIQIH</th>
+                                <th class="border border-black p-2 w-12">SPI</th>
+                                <th class="border border-black p-2 w-12 bg-gray-200 font-bold">NH</th>
+                                <th class="border border-black p-2 w-12">PTS</th>
+                                <th class="border border-black p-2 w-12">PAS</th>
+                                <th class="border border-black p-2 w-12 bg-gray-300 font-extrabold">NA</th>
+                                <th class="border border-black p-2 w-12">PRED</th>
+                                <th class="border border-black p-2">DESKRIPSI CAPAIAN KOMPETENSI</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <template x-for="(st, idx) in printClassStudents" :key="st.id">
+                                <tr>
+                                    <td class="border border-black p-1.5 text-center font-medium" x-text="idx + 1"></td>
+                                    <td class="border border-black p-1.5 text-center" x-text="st.nis"></td>
+                                    <td class="border border-black p-1.5 font-bold" x-text="st.nama"></td>
+                                    <td class="border border-black p-1.5 text-center" x-text="st.gender"></td>
+                                    <td class="border border-black p-1.5 text-center" x-text="calcElemAvg(st.scores, 'q')"></td>
+                                    <td class="border border-black p-1.5 text-center" x-text="calcElemAvg(st.scores, 'aq')"></td>
+                                    <td class="border border-black p-1.5 text-center" x-text="calcElemAvg(st.scores, 'ak')"></td>
+                                    <td class="border border-black p-1.5 text-center" x-text="calcElemAvg(st.scores, 'fq')"></td>
+                                    <td class="border border-black p-1.5 text-center" x-text="calcElemAvg(st.scores, 'sp')"></td>
+                                    <td class="border border-black p-1.5 text-center font-bold bg-gray-100" x-text="calcRerataNH(st.scores)"></td>
+                                    <td class="border border-black p-1.5 text-center" x-text="st.scores.pts || 0"></td>
+                                    <td class="border border-black p-1.5 text-center" x-text="st.scores.pas || 0"></td>
+                                    <td class="border border-black p-1.5 text-center font-extrabold bg-gray-200" x-text="calcNA(st.scores)"></td>
+                                    <td class="border border-black p-1.5 text-center font-bold" x-text="getPredikat(calcNA(st.scores))"></td>
+                                    <td class="border border-black p-1.5 text-[10px] leading-tight" x-text="generateDescription(st)"></td>
+                                </tr>
+                            </template>
+                        </tbody>
+                        <tfoot>
+                            <tr class="bg-gray-100 font-bold text-center">
+                                <td colspan="4" class="border border-black p-2 text-right">RATA-RATA KELAS:</td>
+                                <td colspan="9" class="border border-black p-2 text-left font-extrabold text-blue-900" x-text="calcClassAverage(selectedPrintClass)"></td>
+                                <td colspan="2" class="border border-black p-2 text-left text-xs text-gray-700" x-text="'Total Siswa: ' + printClassStudents.length + ' Orang'"></td>
+                            </tr>
+                        </tfoot>
+                    </table>
+
+                    <div class="mt-10 grid grid-cols-2 text-center text-xs">
+                        <div>
+                            <p>Mengetahui,</p>
+                            <p class="font-bold">Kepala Sekolah <span x-text="school.name"></span></p>
+                            <div class="h-16"></div>
+                            <p class="font-bold underline text-sm" x-text="school.headmaster"></p>
+                            <p x-text="'NIP. ' + school.headmasterNip"></p>
+                        </div>
+                        <div>
+                            <p x-text="(school.printPlace || 'Cihara') + ', ' + printDateManual"></p>
+                            <p class="font-bold">Guru Mata Pelajaran PAI</p>
+                            <div class="h-16"></div>
+                            <p class="font-bold underline text-sm" x-text="school.teacher"></p>
+                            <p x-text="'NIP. ' + school.teacherNip"></p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </main>
+    </div>
+
+    <!-- MODAL: HAPUS SEMUA SISWA -->
+    <div x-show="modals.deleteAll" class="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4 no-print" x-cloak>
+        <div class="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 space-y-4 border-2 border-red-500">
+            <div class="flex justify-between items-center border-b pb-3 text-red-600">
+                <div class="flex items-center space-x-2">
+                    <i class="fa-solid fa-triangle-exclamation text-2xl"></i>
+                    <h3 class="text-lg font-extrabold">Konfirmasi Hapus Data Siswa</h3>
+                </div>
+                <button @click="closeModal('deleteAll')" class="text-gray-400 hover:text-red-600 cursor-pointer"><i class="fa-solid fa-xmark text-xl"></i></button>
+            </div>
+
+            <div class="space-y-4 text-xs">
+                <p class="text-gray-700 leading-relaxed font-medium">
+                    Tindakan ini akan <strong class="text-red-600">menghapus permanen</strong> data siswa beserta seluruh 25 nilai harian, PTS, dan PAS yang telah diinput!
+                </p>
+
+                <div class="bg-red-50 border border-red-200 rounded-lg p-3 space-y-2">
+                    <label class="font-bold text-gray-800 block">Pilih Cakupan Penghapusan:</label>
+                    <div class="space-y-1.5">
+                        <label class="flex items-center space-x-2 font-semibold text-gray-700 cursor-pointer">
+                            <input type="radio" value="filtered" x-model="deleteScope" class="text-red-600 focus:ring-red-500">
+                            <span x-text="'Hanya Siswa ' + (selectedClass === 'All' ? 'Semua Kelas (1-6)' : selectedClass)"></span>
+                        </label>
+                        <label class="flex items-center space-x-2 font-semibold text-gray-700 cursor-pointer">
+                            <input type="radio" value="all" x-model="deleteScope" class="text-red-600 focus:ring-red-500">
+                            <span>Seluruh Siswa (Kelas 1 s.d Kelas 6)</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="font-bold text-gray-800 block mb-1">
+                        Ketik kata <span class="bg-gray-200 text-red-600 px-1.5 py-0.5 rounded font-mono font-bold">HAPUS</span> di bawah ini untuk mengonfirmasi:
+                    </label>
+                    <input
+                        type="text"
+                        x-model="deleteConfirmInput"
+                        placeholder="Ketik HAPUS"
+                        class="w-full border-2 border-red-300 rounded px-3 py-2 text-center text-sm font-bold uppercase focus:ring-2 focus:ring-red-600 focus:border-red-600 outline-none">
+                </div>
+            </div>
+
+            <div class="flex justify-end space-x-2 pt-3 border-t">
+                <button @click="closeModal('deleteAll')" class="bg-gray-200 hover:bg-gray-300 px-4 py-2 rounded text-xs font-semibold cursor-pointer">Batal</button>
+                <button
+                    @click="executeDeleteAll()"
+                    :disabled="deleteConfirmInput !== 'HAPUS'"
+                    :class="deleteConfirmInput === 'HAPUS' ? 'bg-red-600 hover:bg-red-700 text-white cursor-pointer' : 'bg-gray-300 text-gray-500 cursor-not-allowed'"
+                    class="px-5 py-2 rounded text-xs font-bold transition flex items-center space-x-1">
+                    <i class="fa-solid fa-trash-can"></i>
+                    <span>Hapus Permanen</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: EXCEL IMPORT & VALIDATION SYSTEM -->
+    <div x-show="modals.excelImport" class="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 no-print" x-cloak>
+        <div class="bg-white rounded-xl shadow-2xl max-w-3xl w-full p-6 space-y-4 max-h-[90vh] flex flex-col">
+            <div class="flex justify-between items-center border-b pb-3 flex-shrink-0">
+                <div class="flex items-center space-x-2">
+                    <i class="fa-solid fa-file-excel text-emerald-600 text-2xl"></i>
+                    <div>
+                        <h3 class="text-lg font-bold text-navy-900">Import Data Siswa lewat Excel</h3>
+                        <p class="text-xs text-gray-500">Mendukung format .xlsx, .xls, dan .csv SheetJS</p>
+                    </div>
+                </div>
+                <button @click="closeModal('excelImport')" class="text-gray-400 hover:text-red-600 cursor-pointer"><i class="fa-solid fa-xmark text-xl"></i></button>
+            </div>
+
+            <div class="space-y-4 overflow-y-auto flex-1 pr-1">
+                <div
+                    @dragover.prevent="isDragging = true"
+                    @dragleave.prevent="isDragging = false"
+                    @drop.prevent="handleFileDrop($event)"
+                    :class="isDragging ? 'border-emerald-500 bg-emerald-50' : 'border-gray-300 bg-gray-50 hover:bg-emerald-50/50'"
+                    class="border-2 border-dashed rounded-xl p-6 text-center transition cursor-pointer relative">
+
+                    <input type="file" @change="handleFileUpload($event)" accept=".xlsx, .xls, .csv" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
+
+                    <div class="space-y-2 pointer-events-none">
+                        <i class="fa-solid fa-cloud-arrow-up text-4xl text-emerald-600"></i>
+                        <h4 class="text-sm font-bold text-gray-800">Tarik &amp; Lepaskan File Excel di sini, atau Klik untuk Memilih</h4>
+                        <p class="text-xs text-gray-500">Format yang didukung: .xlsx, .xls, .csv (Maksimal 5MB)</p>
+                    </div>
+                </div>
+
+                <div class="flex flex-col sm:flex-row items-center justify-between gap-3 bg-blue-50 p-3 rounded-lg border border-blue-200 text-xs">
+                    <div class="flex items-center space-x-2 text-blue-900 font-medium">
+                        <i class="fa-solid fa-circle-info text-blue-600 text-sm"></i>
+                        <span>Gunakan template resmi agar header kolom terbaca presisi (NIS, Nama, Gender, Kelas).</span>
+                    </div>
+                    <button @click="downloadExcelTemplate()" class="bg-blue-600 hover:bg-blue-700 text-white font-bold px-3 py-1.5 rounded transition whitespace-nowrap cursor-pointer">
+                        <i class="fa-solid fa-download mr-1"></i> Unduh Template Excel
+                    </button>
+                </div>
+
+                <div x-show="excelPreviewData.length > 0" class="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-gray-100 p-3 rounded-lg text-xs">
+                    <div>
+                        <label class="font-bold text-gray-700 block mb-1">Target Kelas Siswa:</label>
+                        <select x-model="excelTargetClass" class="w-full border rounded px-2.5 py-1.5 bg-white font-bold text-navy-900 outline-none">
+                            <option value="auto">Otomatis Baca dari File Excel</option>
+                            <template x-for="c in [1,2,3,4,5,6]">
+                                <option :value="'Kelas ' + c" x-text="'Paksa Masuk ke Kelas ' + c"></option>
+                            </template>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="font-bold text-gray-700 block mb-1">Penanganan Duplikat (NIS/Nama):</label>
+                        <select x-model="excelDuplicateOption" class="w-full border rounded px-2.5 py-1.5 bg-white font-bold text-navy-900 outline-none">
+                            <option value="skip">Lewati (Abaikan Data Duplikat)</option>
+                            <option value="overwrite">Timpa Data Lama jika NIS Sama</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div x-show="excelPreviewData.length > 0" class="space-y-2">
+                    <div class="flex justify-between items-center">
+                        <h4 class="text-xs font-bold text-gray-800 uppercase tracking-wider flex items-center space-x-1">
+                            <span>Pratinjau &amp; Validasi Data</span>
+                            <span class="bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full text-[10px]" x-text="excelPreviewData.length + ' Baris'"></span>
+                        </h4>
+                        <span class="text-[11px] text-gray-500 font-semibold" x-text="'File: ' + uploadedFileName"></span>
+                    </div>
+
+                    <div class="border rounded-lg overflow-hidden max-h-56 overflow-y-auto">
+                        <table class="w-full text-left text-xs border-collapse">
+                            <thead class="bg-navy-900 text-white uppercase sticky top-0">
+                                <tr>
+                                    <th class="py-2 px-3 w-10 text-center">No</th>
+                                    <th class="py-2 px-3">NIS</th>
+                                    <th class="py-2 px-3">Nama Lengkap</th>
+                                    <th class="py-2 px-3 text-center">L/P</th>
+                                    <th class="py-2 px-3 text-center">Kelas</th>
+                                    <th class="py-2 px-3 text-center">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-200 bg-white">
+                                <template x-for="(row, idx) in excelPreviewData" :key="idx">
+                                    <tr class="hover:bg-gray-50">
+                                        <td class="py-1.5 px-3 text-center text-gray-500" x-text="idx + 1"></td>
+                                        <td class="py-1.5 px-3 font-semibold text-gray-700" x-text="row.nis || '-'"></td>
+                                        <td class="py-1.5 px-3 font-bold text-navy-900" x-text="row.nama || '-'"></td>
+                                        <td class="py-1.5 px-3 text-center font-semibold" x-text="row.gender"></td>
+                                        <td class="py-1.5 px-3 text-center font-bold">
+                                            <span class="bg-blue-100 text-blue-800 px-2 py-0.5 rounded" x-text="row.kelas"></span>
+                                        </td>
+                                        <td class="py-1.5 px-3 text-center">
+                                            <template x-if="row.isValid">
+                                                <span class="bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded text-[10px]">Valid</span>
+                                            </template>
+                                            <template x-if="!row.isValid">
+                                                <span class="bg-red-100 text-red-800 font-bold px-2 py-0.5 rounded text-[10px]" x-text="row.errorMsg"></span>
+                                            </template>
+                                        </td>
+                                    </tr>
+                                </template>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex justify-between items-center pt-3 border-t flex-shrink-0">
+                <button @click="closeModal('excelImport')" class="bg-gray-200 hover:bg-gray-300 text-gray-800 px-4 py-2 rounded text-xs font-semibold cursor-pointer">Batal</button>
+                <button
+                    @click="executeExcelImport()"
+                    :disabled="excelPreviewData.length === 0 || validExcelCount === 0"
+                    :class="excelPreviewData.length === 0 || validExcelCount === 0 ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer'"
+                    class="px-5 py-2 rounded text-xs font-bold transition flex items-center space-x-2">
+                    <i class="fa-solid fa-file-import"></i>
+                    <span x-text="'Impor ' + validExcelCount + ' Data Siswa'"></span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: PENGATURAN SEKOLAH -->
+    <div x-show="modals.settings" class="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 no-print" x-cloak>
+        <div class="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6 space-y-4 max-h-[90vh] overflow-y-auto">
+            <div class="flex justify-between items-center border-b pb-3">
+                <h3 class="text-lg font-bold text-navy-900">Pengaturan Sekolah &amp; Guru</h3>
+                <button @click="closeModal('settings')" class="text-gray-400 hover:text-red-600 cursor-pointer"><i class="fa-solid fa-xmark text-xl"></i></button>
+            </div>
+
+            <div class="space-y-3 text-xs">
+                <div class="bg-amber-50 border border-amber-200 rounded-lg p-3 flex items-center justify-between">
+                    <div>
+                        <span class="font-bold text-navy-900 block">Akun Aktif (Username):</span>
+                        <span class="font-mono font-extrabold text-brandRed text-sm" x-text="currentUsername"></span>
+                    </div>
+                    <span class="text-[11px] text-gray-600 text-right">Data tersimpan terpisah<br>khusus akun ini</span>
+                </div>
+                <div>
+                    <label class="font-bold text-gray-700 block mb-1">Instansi / Pemerintah:</label>
+                    <input type="text" x-model="school.government" placeholder="PEMERINTAH KABUPATEN LEBAK" class="w-full border rounded px-3 py-1.5 focus:ring-2 focus:ring-navy-900 outline-none font-semibold">
+                </div>
+                <div>
+                    <label class="font-bold text-gray-700 block mb-1">Nama Sekolah:</label>
+                    <input type="text" x-model="school.name" class="w-full border rounded px-3 py-1.5 focus:ring-2 focus:ring-navy-900 outline-none font-semibold">
+                </div>
+                <div>
+                    <label class="font-bold text-gray-700 block mb-1">Alamat Sekolah:</label>
+                    <input type="text" x-model="school.address" class="w-full border rounded px-3 py-1.5 focus:ring-2 focus:ring-navy-900 outline-none">
+                </div>
+                <div>
+                    <label class="font-bold text-gray-700 block mb-1">Email &amp; Info Kop (Kode Pos):</label>
+                    <input type="text" x-model="school.emailInfo" placeholder="Email: sdn2pondokpanjang@lebak.sch.id | Kode Pos 42392" class="w-full border rounded px-3 py-1.5 focus:ring-2 focus:ring-navy-900 outline-none">
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="font-bold text-gray-700 block mb-1">Guru PAI:</label>
+                        <input type="text" x-model="school.teacher" class="w-full border rounded px-3 py-1.5 focus:ring-2 focus:ring-navy-900 outline-none">
+                    </div>
+                    <div>
+                        <label class="font-bold text-gray-700 block mb-1">NIP Guru:</label>
+                        <input type="text" x-model="school.teacherNip" class="w-full border rounded px-3 py-1.5 focus:ring-2 focus:ring-navy-900 outline-none">
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="font-bold text-gray-700 block mb-1">Kepala Sekolah:</label>
+                        <input type="text" x-model="school.headmaster" class="w-full border rounded px-3 py-1.5 focus:ring-2 focus:ring-navy-900 outline-none">
+                    </div>
+                    <div>
+                        <label class="font-bold text-gray-700 block mb-1">NIP Kepala Sekolah:</label>
+                        <input type="text" x-model="school.headmasterNip" class="w-full border rounded px-3 py-1.5 focus:ring-2 focus:ring-navy-900 outline-none">
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="font-bold text-gray-700 block mb-1">Tahun Ajaran:</label>
+                        <input type="text" x-model="school.year" class="w-full border rounded px-3 py-1.5 focus:ring-2 focus:ring-navy-900 outline-none">
+                    </div>
+                    <div>
+                        <label class="font-bold text-gray-700 block mb-1">Semester:</label>
+                        <select x-model="school.semester" class="w-full border rounded px-3 py-1.5 focus:ring-2 focus:ring-navy-900 outline-none font-semibold">
+                            <option value="Semester 1 (Ganjil)">Semester 1 (Ganjil)</option>
+                            <option value="Semester 2 (Genap)">Semester 2 (Genap)</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="font-bold text-gray-700 block mb-1">Tempat Cetak:</label>
+                        <input type="text" x-model="school.printPlace" placeholder="Cihara" class="w-full border rounded px-3 py-1.5 focus:ring-2 focus:ring-navy-900 outline-none font-semibold">
+                    </div>
+                    <div>
+                        <label class="font-bold text-gray-700 block mb-1">Tanggal Cetak:</label>
+                        <input type="text" x-model="printDateManual" placeholder="Contoh: 21 November 2026" class="w-full border rounded px-3 py-1.5 focus:ring-2 focus:ring-navy-900 outline-none font-semibold">
+                    </div>
+                </div>
+
+                <div class="pt-2 border-t grid grid-cols-2 gap-3 items-center">
+                    <div>
+                        <label class="font-bold text-gray-700 block mb-1">KKM PAI:</label>
+                        <input type="number" min="0" max="100" x-model.number="school.kkm" class="w-full border rounded px-3 py-1.5 text-center font-bold text-brandRed">
+                    </div>
+                    <div>
+                        <label class="font-bold text-gray-700 block mb-1">Password Akun (<span x-text="currentUsername"></span>):</label>
+                        <input type="text" x-model="school.loginPassword" class="w-full border rounded px-3 py-1.5 font-mono font-semibold text-navy-900">
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex justify-end space-x-2 pt-3 border-t">
+                <button @click="closeModal('settings')" class="bg-gray-200 hover:bg-gray-300 px-4 py-2 rounded text-xs font-semibold cursor-pointer">Batal</button>
+                <button @click="updateAccountPasswordAndSchool()" class="bg-navy-900 hover:bg-navy-800 text-white px-4 py-2 rounded text-xs font-bold cursor-pointer">Simpan Pengaturan</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: TAMBAH / EDIT SISWA -->
+    <div x-show="modals.student" class="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 no-print" x-cloak>
+        <div class="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 space-y-4">
+            <div class="flex justify-between items-center border-b pb-3">
+                <h3 class="text-lg font-bold text-navy-900" x-text="formStudent.id ? 'Edit Data Siswa' : 'Tambah Siswa Baru'"></h3>
+                <button @click="closeModal('student')" class="text-gray-400 hover:text-red-600 cursor-pointer"><i class="fa-solid fa-xmark text-xl"></i></button>
+            </div>
+
+            <div class="space-y-3 text-xs">
+                <div>
+                    <label class="font-bold text-gray-700 block mb-1">NIS / NISN:</label>
+                    <input type="text" x-model="formStudent.nis" class="w-full border rounded px-3 py-1.5 focus:ring-2 focus:ring-navy-900 outline-none">
+                </div>
+                <div>
+                    <label class="font-bold text-gray-700 block mb-1">Nama Lengkap Siswa:</label>
+                    <input type="text" x-model="formStudent.nama" class="w-full border rounded px-3 py-1.5 focus:ring-2 focus:ring-navy-900 outline-none font-bold">
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="font-bold text-gray-700 block mb-1">Jenis Kelamin:</label>
+                        <select x-model="formStudent.gender" class="w-full border rounded px-3 py-1.5 focus:ring-2 focus:ring-navy-900 outline-none">
+                            <option value="L">Laki-laki (L)</option>
+                            <option value="P">Perempuan (P)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="font-bold text-gray-700 block mb-1">Kelas:</label>
+                        <select x-model="formStudent.kelas" class="w-full border rounded px-3 py-1.5 focus:ring-2 focus:ring-navy-900 outline-none font-bold">
+                            <template x-for="c in [1,2,3,4,5,6]">
+                                <option :value="'Kelas ' + c" x-text="'Kelas ' + c"></option>
+                            </template>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex justify-end space-x-2 pt-3 border-t">
+                <button @click="closeModal('student')" class="bg-gray-200 hover:bg-gray-300 px-4 py-2 rounded text-xs font-semibold cursor-pointer">Batal</button>
+                <button @click="saveStudentForm()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded text-xs font-bold cursor-pointer">Simpan Data Siswa</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: TAMBAH / EDIT TP -->
+    <div x-show="modals.tp" class="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 no-print" x-cloak>
+        <div class="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 space-y-4">
+            <div class="flex justify-between items-center border-b pb-3">
+                <h3 class="text-lg font-bold text-navy-900" x-text="formTP.id ? 'Edit TP PAI' : 'Tambah TP PAI'"></h3>
+                <button @click="closeModal('tp')" class="text-gray-400 hover:text-red-600 cursor-pointer"><i class="fa-solid fa-xmark text-xl"></i></button>
+            </div>
+
+            <div class="space-y-3 text-xs">
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="font-bold text-gray-700 block mb-1">Kelas:</label>
+                        <select x-model="formTP.kelas" class="w-full border rounded px-3 py-1.5 font-bold focus:ring-2 focus:ring-navy-900 outline-none">
+                            <template x-for="c in [1,2,3,4,5,6]">
+                                <option :value="'Kelas ' + c" x-text="'Kelas ' + c"></option>
+                            </template>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="font-bold text-gray-700 block mb-1">Kode TP:</label>
+                        <input type="text" x-model="formTP.kode" placeholder="TP 1.1" class="w-full border rounded px-3 py-1.5 focus:ring-2 focus:ring-navy-900 outline-none font-bold">
+                    </div>
+                </div>
+                <div>
+                    <label class="font-bold text-gray-700 block mb-1">Elemen PAI:</label>
+                    <select x-model="formTP.elemen" class="w-full border rounded px-3 py-1.5 font-semibold focus:ring-2 focus:ring-navy-900 outline-none">
+                        <template x-for="el in paiElements">
+                            <option :value="el" x-text="el"></option>
+                        </template>
+                    </select>
+                </div>
+                <div>
+                    <label class="font-bold text-gray-700 block mb-1">Deskripsi Tujuan Pembelajaran:</label>
+                    <textarea x-model="formTP.deskripsi" rows="3" class="w-full border rounded p-2 focus:ring-2 focus:ring-navy-900 outline-none"></textarea>
+                </div>
+            </div>
+
+            <div class="flex justify-end space-x-2 pt-3 border-t">
+                <button @click="closeModal('tp')" class="bg-gray-200 hover:bg-gray-300 px-4 py-2 rounded text-xs font-semibold cursor-pointer">Batal</button>
+                <button @click="saveTPForm()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded text-xs font-bold cursor-pointer">Simpan TP</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- TOAST NOTIFICATION -->
+    <div x-show="toast.show" x-transition class="fixed bottom-5 right-5 bg-navy-900 text-yellow-400 border border-yellow-400/50 px-4 py-3 rounded-xl shadow-2xl flex items-center space-x-3 z-50 no-print" x-cloak>
+        <i class="fa-solid fa-circle-check text-emerald-400 text-lg"></i>
+        <span class="text-xs font-bold text-white" x-text="toast.message"></span>
+    </div>
+
+    <!-- ALPINE.JS APP LOGIC & SHEETJS INTEGRATION -->
+    <script>
+        function paiApp() {
+            return {
+                isAuthenticated: false,
+                sidebarOnlyMode: true,
+                authMode: 'login',
+                authLoading: false,
+                loginUsernameInput: '',
+                loginPasswordInput: '',
+                registerSchoolName: '',
+                registerTeacherName: '',
+                registerUsername: '',
+                registerPassword: '',
+                loginError: '',
+                showLoginPassword: false,
+
+                currentUsername: 'enjat',
+                workspaceId: 'sdn2-pondokpanjang',
+                sidebarOpen: true,
+                activeTab: '',
+                selectedClass: 'All',
+                tpFilterClass: 'All',
+                tpFilterElement: 'All',
+                selectedInputClass: 'Kelas 1',
+                selectedPrintClass: 'Kelas 1',
+                printDateManual: '',
+                searchStudent: '',
+
+                toast: {
+                    show: false,
+                    message: ''
+                },
+
+                modals: {
+                    settings: false,
+                    student: false,
+                    tp: false,
+                    excelImport: false,
+                    deleteAll: false
+                },
+
+                deleteScope: 'filtered',
+                deleteConfirmInput: '',
+
+                isDragging: false,
+                uploadedFileName: '',
+                excelPreviewData: [],
+                excelTargetClass: 'auto',
+                excelDuplicateOption: 'skip',
+
+                school: {
+                    government: 'PEMERINTAH KABUPATEN LEBAK',
+                    name: 'SDN 2 PONDOKPANJANG',
+                    address: 'Kp. Pasirmantang, Desa Pondokpanjang, Kec. Cihara, Kab. Lebak',
+                    emailInfo: 'Email: sdn2pondokpanjang@lebak.sch.id | Kode Pos 42392',
+                    teacher: 'Enjat, S.Pd.I.',
+                    teacherNip: '19850612 201403 1 002',
+                    headmaster: 'H. Samsudin, S.Pd.',
+                    headmasterNip: '19680415 199103 1 005',
+                    year: '2026/2027',
+                    semester: 'Semester 1 (Ganjil)',
+                    printPlace: 'Cihara',
+                    author: '@enjatnabhancimanggu',
+                    kkm: 70,
+                    loginPassword: 'pai123'
+                },
+
+                paiElements: [
+                    "Al-Qur'an & Hadits",
+                    "Akidah",
+                    "Akhlak",
+                    "Fiqih",
+                    "Sejarah Peradaban Islam (SPI)"
+                ],
+
+                formStudent: {
+                    id: null,
+                    nis: '',
+                    nama: '',
+                    gender: 'L',
+                    kelas: 'Kelas 1'
+                },
+
+                formTP: {
+                    id: null,
+                    kelas: 'Kelas 1',
+                    elemen: "Al-Qur'an & Hadits",
+                    kode: 'TP 1.1',
+                    deskripsi: ''
+                },
+
+                students: [],
+                tpList: [],
+
+                db: null,
+                auth: null,
+                cloudUser: null,
+                cloudUserId: '',
+                appId: 'default-app-id',
+                cloudStatus: 'connecting',
+                cloudStatusText: 'Menghubungkan ke penyimpanan cloud...',
+                unsubscribers: [],
+
+                sortStudentsByName(list) {
+                    return [...list].sort((a, b) =>
+                        String(a.nama || '').trim().localeCompare(String(b.nama || '').trim(), 'id', { sensitivity: 'base' })
+                    );
+                },
+
+                sanitizeWorkspaceId(raw) {
+                    const cleaned = String(raw || 'sdn2-pondokpanjang')
+                        .trim()
+                        .toLowerCase()
+                        .replace(/[^a-z0-9-_]/g, '-')
+                        .replace(/-+/g, '-')
+                        .replace(/^-|-$/g, '');
+                    return cleaned || 'sdn2-pondokpanjang';
+                },
+
+                async initData() {
+                    this.isAuthenticated = false;
+                    this.sidebarOnlyMode = true;
+                    this.sidebarOpen = true;
+                    this.activeTab = '';
+                    this.authMode = 'login';
+                    this.loginPasswordInput = '';
+                    this.loginError = '';
+                    this.printDateManual = this.getCurrentDateFormatted();
+
+                    const savedUsername = localStorage.getItem('pai_last_username');
+                    if (savedUsername) {
+                        this.loginUsernameInput = savedUsername;
+                    }
+
+                    const startFirebase = () => this.initCloudStorage();
+                    if (window.firebaseModules) {
+                        await startFirebase();
+                    } else {
+                        window.addEventListener('firebase-ready', startFirebase, { once: true });
+                    }
+                },
+
+                getWorkspaceKey(prefix) {
+                    return `${prefix}_${this.workspaceId}`;
+                },
+
+                loadLocalFallback() {
+                    const savedSchool = localStorage.getItem(this.getWorkspaceKey('pai_school_config'));
+                    const savedPrintDate = localStorage.getItem(this.getWorkspaceKey('pai_print_date'));
+                    const savedStudents = localStorage.getItem(this.getWorkspaceKey('pai_students_data'));
+                    const savedTP = localStorage.getItem(this.getWorkspaceKey('pai_tp_data'));
+
+                    if (savedSchool) {
+                        try {
+                            this.school = { ...this.school, ...JSON.parse(savedSchool) };
+                        } catch (e) {}
+                    }
+                    if (savedPrintDate) {
+                        this.printDateManual = savedPrintDate;
+                    }
+                    if (savedStudents) {
+                        try {
+                            const parsedStudents = JSON.parse(savedStudents);
+                            this.students = this.sortStudentsByName(parsedStudents.map(st => ({
+                                ...st,
+                                scores: { ...this.createDefault25Scores(), ...(st.scores || {}) }
+                            })));
+                        } catch (e) {
+                            this.loadDefaultStudents(false);
+                        }
+                    } else {
+                        this.loadDefaultStudents(false);
+                    }
+                    if (savedTP) {
+                        try {
+                            this.tpList = JSON.parse(savedTP);
+                        } catch (e) {
+                            this.loadDefaultTP(false);
+                        }
+                    } else {
+                        this.loadDefaultTP(false);
+                    }
+                },
+
+                saveLocalFallback() {
+                    try {
+                        localStorage.setItem('pai_active_workspace', this.workspaceId);
+                        localStorage.setItem(this.getWorkspaceKey('pai_school_config'), JSON.stringify(this.school));
+                        localStorage.setItem(this.getWorkspaceKey('pai_print_date'), this.printDateManual);
+                        localStorage.setItem(this.getWorkspaceKey('pai_students_data'), JSON.stringify(this.students));
+                        localStorage.setItem(this.getWorkspaceKey('pai_tp_data'), JSON.stringify(this.tpList));
+                    } catch (e) {}
+                },
+
+                async initCloudStorage() {
+                    try {
+                        const fm = window.firebaseModules;
+                        this.appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+
+                        let firebaseConfig = null;
+                        if (typeof __firebase_config !== 'undefined' && __firebase_config) {
+                            firebaseConfig = typeof __firebase_config === 'string' ? JSON.parse(__firebase_config) : __firebase_config;
+                        } else if (window.CUSTOM_FIREBASE_CONFIG && window.CUSTOM_FIREBASE_CONFIG.apiKey && window.CUSTOM_FIREBASE_CONFIG.projectId) {
+                            firebaseConfig = window.CUSTOM_FIREBASE_CONFIG;
+                        }
+
+                        if (!firebaseConfig || !firebaseConfig.apiKey || !firebaseConfig.projectId) {
+                            this.cloudStatus = 'error';
+                            this.cloudStatusText = 'Isi CUSTOM_FIREBASE_CONFIG di index.html agar tersinkron ke Firebase Cloud.';
+                            this.loadLocalFallback();
+                            return;
+                        }
+
+                        const app = fm.initializeApp(firebaseConfig);
+                        this.auth = fm.getAuth(app);
+                        this.db = fm.getFirestore(app);
+
+                        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                            await fm.signInWithCustomToken(this.auth, __initial_auth_token);
+                        } else {
+                            await fm.signInAnonymously(this.auth);
+                        }
+
+                        this.cloudUser = this.auth.currentUser;
+                        if (!this.cloudUser) return;
+
+                        this.cloudUserId = this.cloudUser.uid;
+                        this.cloudStatus = 'connected';
+                        this.cloudStatusText = 'Terhubung ke Firebase Cloud (Sinkronisasi Real-Time Aktif)';
+
+                        this.setupRealtimeListeners();
+                    } catch (err) {
+                        console.error('Cloud init error:', err);
+                        this.cloudStatus = 'error';
+                        this.cloudStatusText = 'Gagal terhubung ke Firebase: ' + (err.message || 'Periksa konfigurasi & rules Firestore');
+                        this.loadLocalFallback();
+                    }
+                },
+
+                clearListeners() {
+                    this.unsubscribers.forEach(unsub => {
+                        try { unsub(); } catch (e) {}
+                    });
+                    this.unsubscribers = [];
+                },
+
+                setupRealtimeListeners() {
+                    if (!this.cloudUser || !this.db) return;
+                    this.clearListeners();
+
+                    const fm = window.firebaseModules;
+                    const ws = this.workspaceId;
+
+                    // 1. Listener Pengaturan Sekolah per Workspace
+                    const settingsRef = fm.doc(this.db, 'artifacts', this.appId, 'public', 'data', `pai_settings_${ws}`, 'config');
+                    const unsubSettings = fm.onSnapshot(settingsRef, (snap) => {
+                        if (snap.exists()) {
+                            const data = snap.data();
+                            if (data.school) {
+                                this.school = { ...this.school, ...data.school };
+                            }
+                            if (data.printDateManual) {
+                                this.printDateManual = data.printDateManual;
+                            }
+                            this.saveLocalFallback();
+                        } else {
+                            this.saveSchoolToCloud();
+                        }
+                    }, (err) => {
+                        console.error('Settings snapshot error:', err);
+                    });
+                    this.unsubscribers.push(unsubSettings);
+
+                    // 2. Listener Data Siswa per Workspace
+                    const studentsCol = fm.collection(this.db, 'artifacts', this.appId, 'public', 'data', `pai_students_${ws}`);
+                    const unsubStudents = fm.onSnapshot(studentsCol, async (snapshot) => {
+                        if (snapshot.empty) {
+                            const metaRef = fm.doc(this.db, 'artifacts', this.appId, 'public', 'data', `pai_settings_${ws}`, 'meta');
+                            const { getDoc } = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js");
+                            const metaSnap = await getDoc(metaRef);
+                            const alreadyInitialized = metaSnap.exists() && metaSnap.data().studentsInitialized;
+
+                            if (!alreadyInitialized) {
+                                await fm.setDoc(metaRef, { studentsInitialized: true }, { merge: true });
+                                if (this.students.length === 0) {
+                                    this.loadDefaultStudents(true);
+                                } else {
+                                    for (const st of this.students) {
+                                        this.saveStudentToCloud(st);
+                                    }
+                                }
+                            } else {
+                                this.students = [];
+                                this.saveLocalFallback();
+                            }
+                        } else {
+                            const list = [];
+                            snapshot.forEach((docSnap) => {
+                                const data = docSnap.data();
+                                list.push({
+                                    ...data,
+                                    id: docSnap.id,
+                                    scores: { ...this.createDefault25Scores(), ...(data.scores || {}) }
+                                });
+                            });
+                            this.students = this.sortStudentsByName(list);
+                            this.saveLocalFallback();
+                        }
+                    }, (err) => {
+                        console.error('Students snapshot error:', err);
+                    });
+                    this.unsubscribers.push(unsubStudents);
+
+                    // 3. Listener Data TP per Workspace
+                    const tpCol = fm.collection(this.db, 'artifacts', this.appId, 'public', 'data', `pai_tp_${ws}`);
+                    const unsubTP = fm.onSnapshot(tpCol, (snapshot) => {
+                        if (snapshot.empty) {
+                            if (this.tpList.length === 0) {
+                                this.loadDefaultTP(true);
+                            } else {
+                                for (const tp of this.tpList) {
+                                    this.saveTPToCloud(tp);
+                                }
+                            }
+                        } else {
+                            const list = [];
+                            snapshot.forEach((docSnap) => {
+                                list.push({ ...docSnap.data(), id: docSnap.id });
+                            });
+                            list.sort((a, b) => String(a.kode || '').localeCompare(String(b.kode || '')));
+                            this.tpList = list;
+                            this.saveLocalFallback();
+                        }
+                    }, (err) => {
+                        console.error('TP snapshot error:', err);
+                    });
+                    this.unsubscribers.push(unsubTP);
+                },
+
+                async saveSchoolToCloud() {
+                    this.saveLocalFallback();
+                    if (!this.cloudUser || !this.db) return;
+                    try {
+                        const fm = window.firebaseModules;
+                        const settingsRef = fm.doc(this.db, 'artifacts', this.appId, 'public', 'data', `pai_settings_${this.workspaceId}`, 'config');
+                        await fm.setDoc(settingsRef, {
+                            school: JSON.parse(JSON.stringify(this.school)),
+                            printDateManual: this.printDateManual
+                        });
+                    } catch (err) {
+                        console.error('Failed saving school config:', err);
+                    }
+                },
+
+                getLocalAccounts() {
+                    try {
+                        const raw = localStorage.getItem('pai_accounts_registry');
+                        const parsed = raw ? JSON.parse(raw) : {};
+                        if (!parsed['enjat']) {
+                            parsed['enjat'] = {
+                                username: 'enjat',
+                                password: this.school.loginPassword || 'pai123',
+                                workspaceId: 'sdn2-pondokpanjang',
+                                schoolName: 'SDN 2 PONDOKPANJANG',
+                                teacherName: 'Enjat, S.Pd.I.'
+                            };
+                        }
+                        return parsed;
+                    } catch (e) {
+                        return {
+                            enjat: {
+                                username: 'enjat',
+                                password: 'pai123',
+                                workspaceId: 'sdn2-pondokpanjang',
+                                schoolName: 'SDN 2 PONDOKPANJANG',
+                                teacherName: 'Enjat, S.Pd.I.'
+                            }
+                        };
+                    }
+                },
+
+                saveLocalAccount(account) {
+                    try {
+                        const all = this.getLocalAccounts();
+                        all[account.username] = account;
+                        localStorage.setItem('pai_accounts_registry', JSON.stringify(all));
+                    } catch (e) {}
+                },
+
+                async getCloudAccount(username) {
+                    if (!this.cloudUser || !this.db) return null;
+                    try {
+                        const fm = window.firebaseModules;
+                        const { getDoc } = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js");
+                        const accRef = fm.doc(this.db, 'artifacts', this.appId, 'public', 'data', 'pai_accounts', username);
+                        const snap = await getDoc(accRef);
+                        return snap.exists() ? snap.data() : null;
+                    } catch (e) {
+                        return null;
+                    }
+                },
+
+                async saveCloudAccount(account) {
+                    this.saveLocalAccount(account);
+                    if (!this.cloudUser || !this.db) return;
+                    try {
+                        const fm = window.firebaseModules;
+                        const accRef = fm.doc(this.db, 'artifacts', this.appId, 'public', 'data', 'pai_accounts', account.username);
+                        await fm.setDoc(accRef, account);
+                    } catch (e) {
+                        console.error('Failed saving account:', e);
+                    }
+                },
+
+                async saveStudentToCloud(student) {
+                    this.saveLocalFallback();
+                    if (!this.cloudUser || !this.db || !student) return;
+                    try {
+                        const fm = window.firebaseModules;
+                        const docId = String(student.id);
+                        const studentDocRef = fm.doc(this.db, 'artifacts', this.appId, 'public', 'data', `pai_students_${this.workspaceId}`, docId);
+                        await fm.setDoc(studentDocRef, JSON.parse(JSON.stringify({ ...student, id: docId })));
+                    } catch (err) {
+                        console.error('Failed saving student:', err);
+                    }
+                },
+
+                async saveAllScoresToCloud() {
+                    this.saveLocalFallback();
+                    if (!this.cloudUser || !this.db) return;
+                    for (const st of this.currentClassStudents) {
+                        await this.saveStudentToCloud(st);
+                    }
+                },
+
+                async deleteStudentFromCloud(id) {
+                    this.saveLocalFallback();
+                    if (!this.cloudUser || !this.db) return;
+                    try {
+                        const fm = window.firebaseModules;
+                        const studentDocRef = fm.doc(this.db, 'artifacts', this.appId, 'public', 'data', `pai_students_${this.workspaceId}`, String(id));
+                        await fm.deleteDoc(studentDocRef);
+                    } catch (err) {
+                        console.error('Failed deleting student:', err);
+                    }
+                },
+
+                async saveTPToCloud(tpItem) {
+                    this.saveLocalFallback();
+                    if (!this.cloudUser || !this.db || !tpItem) return;
+                    try {
+                        const fm = window.firebaseModules;
+                        const docId = String(tpItem.id);
+                        const tpDocRef = fm.doc(this.db, 'artifacts', this.appId, 'public', 'data', `pai_tp_${this.workspaceId}`, docId);
+                        await fm.setDoc(tpDocRef, JSON.parse(JSON.stringify({ ...tpItem, id: docId })));
+                    } catch (err) {
+                        console.error('Failed saving TP:', err);
+                    }
+                },
+
+                async deleteTPFromCloud(id) {
+                    this.saveLocalFallback();
+                    if (!this.cloudUser || !this.db) return;
+                    try {
+                        const fm = window.firebaseModules;
+                        const tpDocRef = fm.doc(this.db, 'artifacts', this.appId, 'public', 'data', `pai_tp_${this.workspaceId}`, String(id));
+                        await fm.deleteDoc(tpDocRef);
+                    } catch (err) {
+                        console.error('Failed deleting TP:', err);
+                    }
+                },
+
+                saveData() {
+                    this.saveSchoolToCloud();
+                },
+
+                async updateAccountPasswordAndSchool() {
+                    const newPass = (this.school.loginPassword || 'pai123').trim();
+                    this.school.loginPassword = newPass;
+                    await this.saveSchoolToCloud();
+                    await this.saveCloudAccount({
+                        username: this.currentUsername,
+                        password: newPass,
+                        workspaceId: this.workspaceId,
+                        schoolName: this.school.name,
+                        teacherName: this.school.teacher
+                    });
+                    this.closeModal('settings');
+                    this.showToast('Pengaturan & password akun berhasil disimpan!');
+                },
+
+                async loginWithCredentials() {
+                    const uname = this.sanitizeWorkspaceId(this.loginUsernameInput);
+                    const pass = this.loginPasswordInput.trim();
+
+                    if (!this.loginUsernameInput.trim() || !pass) {
+                        this.loginError = 'Username dan password wajib diisi.';
+                        return;
+                    }
+
+                    this.authLoading = true;
+                    this.loginError = '';
+
+                    try {
+                        let account = await this.getCloudAccount(uname);
+                        if (!account) {
+                            const localAccounts = this.getLocalAccounts();
+                            account = localAccounts[uname] || null;
+                            if (account && this.cloudUser && this.db) {
+                                await this.saveCloudAccount(account);
+                            }
+                        }
+
+                        if (!account) {
+                            this.loginError = 'Username tidak ditemukan. Silakan daftar di tab "Daftar Sekolah Baru".';
+                            return;
+                        }
+
+                        if (String(account.password) !== pass) {
+                            this.loginError = 'Password salah! Silakan periksa kembali.';
+                            return;
+                        }
+
+                        this.currentUsername = account.username;
+                        this.workspaceId = account.workspaceId || account.username;
+                        localStorage.setItem('pai_last_username', this.currentUsername);
+                        localStorage.setItem('pai_active_workspace', this.workspaceId);
+
+                        this.loadLocalFallback();
+                        if (account.schoolName && this.school.name === 'SDN 2 PONDOKPANJANG' && this.workspaceId !== 'sdn2-pondokpanjang') {
+                            this.school.name = account.schoolName;
+                        }
+                        if (account.teacherName && this.school.teacher === 'Enjat, S.Pd.I.' && this.workspaceId !== 'sdn2-pondokpanjang') {
+                            this.school.teacher = account.teacherName;
+                        }
+                        this.school.loginPassword = pass;
+
+                        this.isAuthenticated = true;
+                        this.sidebarOnlyMode = true;
+                        this.sidebarOpen = true;
+                        this.activeTab = '';
+                        this.loginPasswordInput = '';
+                        this.loginError = '';
+
+                        if (this.cloudUser && this.db) {
+                            this.setupRealtimeListeners();
+                        }
+                        this.showToast('Selamat datang, ' + this.currentUsername + ' (' + this.school.name + ')');
+                    } finally {
+                        this.authLoading = false;
+                    }
+                },
+
+                async registerSchoolAccount() {
+                    const schoolName = this.registerSchoolName.trim().toUpperCase();
+                    const teacherName = this.registerTeacherName.trim();
+                    const uname = this.sanitizeWorkspaceId(this.registerUsername);
+                    const pass = this.registerPassword.trim();
+
+                    if (!schoolName || !this.registerUsername.trim() || !pass) {
+                        this.loginError = 'Nama Sekolah, Username, dan Password wajib diisi.';
+                        return;
+                    }
+                    if (uname.length < 3) {
+                        this.loginError = 'Username minimal 3 karakter (huruf/angka).';
+                        return;
+                    }
+                    if (pass.length < 4) {
+                        this.loginError = 'Password minimal 4 karakter.';
+                        return;
+                    }
+
+                    this.authLoading = true;
+                    this.loginError = '';
+
+                    try {
+                        const existingCloud = await this.getCloudAccount(uname);
+                        const existingLocal = this.getLocalAccounts()[uname];
+                        if (existingCloud || existingLocal) {
+                            this.loginError = 'Username "' + uname + '" sudah dipakai sekolah lain. Pilih username lain.';
+                            return;
+                        }
+
+                        const newAccount = {
+                            username: uname,
+                            password: pass,
+                            workspaceId: 'ws_' + uname,
+                            schoolName: schoolName,
+                            teacherName: teacherName || 'Guru PAI',
+                            createdAt: new Date().toISOString()
+                        };
+
+                        await this.saveCloudAccount(newAccount);
+
+                        this.currentUsername = newAccount.username;
+                        this.workspaceId = newAccount.workspaceId;
+                        localStorage.setItem('pai_last_username', this.currentUsername);
+                        localStorage.setItem('pai_active_workspace', this.workspaceId);
+
+                        this.school.name = schoolName;
+                        if (teacherName) this.school.teacher = teacherName;
+                        this.school.loginPassword = pass;
+                        this.students = [];
+                        this.tpList = [];
+                        this.loadDefaultStudents(false);
+                        this.loadDefaultTP(false);
+
+                        this.isAuthenticated = true;
+                        this.sidebarOnlyMode = true;
+                        this.sidebarOpen = true;
+                        this.activeTab = '';
+                        this.registerSchoolName = '';
+                        this.registerTeacherName = '';
+                        this.registerUsername = '';
+                        this.registerPassword = '';
+
+                        if (this.cloudUser && this.db) {
+                            await this.saveSchoolToCloud();
+                            this.setupRealtimeListeners();
+                        }
+                        this.showToast('Akun sekolah "' + schoolName + '" berhasil dibuat!');
+                    } finally {
+                        this.authLoading = false;
+                    }
+                },
+
+                selectMenu(tabName) {
+                    this.activeTab = tabName;
+                    this.sidebarOnlyMode = false;
+                },
+
+                showToast(msg) {
+                    this.toast.message = msg;
+                    this.toast.show = true;
+                    setTimeout(() => { this.toast.show = false; }, 3200);
+                },
+
+                openModal(name) {
+                    if (name === 'add-student') {
+                        this.formStudent = { id: null, nis: this.generateNIS(), nama: '', gender: 'L', kelas: this.selectedClass === 'All' ? 'Kelas 1' : this.selectedClass };
+                        this.modals.student = true;
+                    } else if (name === 'delete-all') {
+                        this.deleteConfirmInput = '';
+                        this.deleteScope = 'filtered';
+                        this.modals.deleteAll = true;
+                    } else if (name === 'excel-import') {
+                        this.excelPreviewData = [];
+                        this.uploadedFileName = '';
+                        this.excelTargetClass = 'auto';
+                        this.excelDuplicateOption = 'skip';
+                        this.modals.excelImport = true;
+                    } else if (name === 'add-tp') {
+                        const defaultClass = this.tpFilterClass === 'All' ? 'Kelas 1' : this.tpFilterClass;
+                        const defaultElem = this.tpFilterElement === 'All' ? "Al-Qur'an & Hadits" : this.tpFilterElement;
+                        const classNum = defaultClass.replace('Kelas ', '') || '1';
+                        const nextIndex = this.tpList.filter(t => t.kelas === defaultClass).length + 1;
+                        this.formTP = {
+                            id: null,
+                            kelas: defaultClass,
+                            elemen: defaultElem,
+                            kode: `TP ${classNum}.${nextIndex}`,
+                            deskripsi: ''
+                        };
+                        this.modals.tp = true;
+                    } else {
+                        this.modals[name] = true;
+                    }
+                },
+
+                closeModal(name) {
+                    this.modals[name] = false;
+                },
+
+                generateNIS() {
+                    return '2026' + String(Math.floor(1000 + Math.random() * 9000));
+                },
+
+                async executeDeleteAll() {
+                    if (this.deleteConfirmInput !== 'HAPUS') return;
+
+                    let toDelete = [];
+                    if (this.deleteScope === 'all' || this.selectedClass === 'All') {
+                        toDelete = [...this.students];
+                        this.students = [];
+                    } else {
+                        toDelete = this.students.filter(s => s.kelas === this.selectedClass);
+                        this.students = this.students.filter(s => s.kelas !== this.selectedClass);
+                    }
+
+                    if (this.cloudUser && this.db) {
+                        const fm = window.firebaseModules;
+                        const metaRef = fm.doc(this.db, 'artifacts', this.appId, 'public', 'data', `pai_settings_${this.workspaceId}`, 'meta');
+                        await fm.setDoc(metaRef, { studentsInitialized: true }, { merge: true });
+                    }
+
+                    for (const st of toDelete) {
+                        await this.deleteStudentFromCloud(st.id);
+                    }
+
+                    this.closeModal('deleteAll');
+                    this.showToast(`Berhasil menghapus ${toDelete.length} data siswa!`);
+                },
+
+                createDefault25Scores() {
+                    const scores = { pts: 80, pas: 82 };
+                    const elemPrefixes = ['q', 'aq', 'ak', 'fq', 'sp'];
+                    elemPrefixes.forEach(prefix => {
+                        for (let i = 1; i <= 5; i++) {
+                            scores[prefix + i] = Math.floor(75 + Math.random() * 20);
+                        }
+                    });
+                    return scores;
+                },
+
+                downloadExcelTemplate() {
+                    const templateData = [
+                        { "NIS / NISN": "20260101", "Nama Lengkap Siswa": "Ahmad Abdullah", "Jenis Kelamin (L/P)": "L", "Kelas (1-6)": "Kelas 1" },
+                        { "NIS / NISN": "20260102", "Nama Lengkap Siswa": "Aisyah Humaira", "Jenis Kelamin (L/P)": "P", "Kelas (1-6)": "Kelas 1" },
+                        { "NIS / NISN": "20260201", "Nama Lengkap Siswa": "Budi Santoso", "Jenis Kelamin (L/P)": "L", "Kelas (1-6)": "Kelas 2" }
+                    ];
+
+                    const worksheet = XLSX.utils.json_to_sheet(templateData);
+                    const workbook = XLSX.utils.book_new();
+                    XLSX.utils.book_append_sheet(workbook, worksheet, "Template Siswa PAI");
+
+                    worksheet['!cols'] = [ { wch: 15 }, { wch: 30 }, { wch: 20 }, { wch: 15 } ];
+                    XLSX.writeFile(workbook, `Template_Import_Siswa_PAI_${this.workspaceId}.xlsx`);
+                    this.showToast('Template Excel berhasil diunduh!');
+                },
+
+                handleFileUpload(event) {
+                    const file = event.target.files[0];
+                    if (file) this.processExcelFile(file);
+                },
+
+                handleFileDrop(event) {
+                    this.isDragging = false;
+                    const file = event.dataTransfer.files[0];
+                    if (file) this.processExcelFile(file);
+                },
+
+                processExcelFile(file) {
+                    this.uploadedFileName = file.name;
+                    const reader = new FileReader();
+
+                    reader.onload = (e) => {
+                        try {
+                            const data = new Uint8Array(e.target.result);
+                            const workbook = XLSX.read(data, { type: 'array' });
+                            const firstSheetName = workbook.SheetNames[0];
+                            const worksheet = workbook.Sheets[firstSheetName];
+
+                            const rawJson = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
+                            this.parseExcelRows(rawJson);
+                        } catch (err) {
+                            this.showToast('Gagal membaca file Excel. Pastikan format file valid (.xlsx, .xls, .csv)');
+                        }
+                    };
+
+                    reader.readAsArrayBuffer(file);
+                },
+
+                parseExcelRows(rows) {
+                    const parsed = [];
+
+                    rows.forEach((row) => {
+                        const nisKey = Object.keys(row).find(k => k.toLowerCase().includes('nis')) || '';
+                        const namaKey = Object.keys(row).find(k => k.toLowerCase().includes('nama')) || '';
+                        const genderKey = Object.keys(row).find(k => k.toLowerCase().includes('kelamin') || k.toLowerCase().includes('l/p') || k.toLowerCase() === 'jk') || '';
+                        const kelasKey = Object.keys(row).find(k => k.toLowerCase().includes('kelas')) || '';
+
+                        const nis = String(row[nisKey] || '').trim();
+                        const nama = String(row[namaKey] || '').trim();
+                        let gender = String(row[genderKey] || 'L').trim().toUpperCase();
+                        if (gender.startsWith('P') || gender.startsWith('W')) gender = 'P';
+                        else gender = 'L';
+
+                        let kelasRaw = String(row[kelasKey] || 'Kelas 1').trim();
+                        let kelas = 'Kelas 1';
+                        if (kelasRaw.match(/[1-6]/)) {
+                            const num = kelasRaw.match(/[1-6]/)[0];
+                            kelas = 'Kelas ' + num;
+                        }
+
+                        let isValid = true;
+                        let errorMsg = '';
+
+                        if (!nama) {
+                            isValid = false;
+                            errorMsg = 'Nama kosong';
+                        }
+
+                        parsed.push({
+                            nis: nis || this.generateNIS(),
+                            nama: nama,
+                            gender: gender,
+                            kelas: kelas,
+                            isValid: isValid,
+                            errorMsg: errorMsg
+                        });
+                    });
+
+                    this.excelPreviewData = parsed;
+                },
+
+                get validExcelCount() {
+                    return this.excelPreviewData.filter(r => r.isValid).length;
+                },
+
+                async executeExcelImport() {
+                    if (this.validExcelCount === 0) return;
+
+                    let addedCount = 0;
+                    let updatedCount = 0;
+
+                    for (const row of this.excelPreviewData) {
+                        if (!row.isValid) continue;
+
+                        const targetClass = this.excelTargetClass === 'auto' ? row.kelas : this.excelTargetClass;
+                        const existingIdx = this.students.findIndex(s => s.nis === row.nis || s.nama.toLowerCase() === row.nama.toLowerCase());
+
+                        if (existingIdx !== -1) {
+                            if (this.excelDuplicateOption === 'overwrite') {
+                                this.students[existingIdx].nama = row.nama;
+                                this.students[existingIdx].gender = row.gender;
+                                this.students[existingIdx].kelas = targetClass;
+                                await this.saveStudentToCloud(this.students[existingIdx]);
+                                updatedCount++;
+                            }
+                        } else {
+                            const newStudent = {
+                                id: String(Date.now() + Math.floor(Math.random() * 10000)),
+                                nis: row.nis,
+                                nama: row.nama,
+                                gender: row.gender,
+                                kelas: targetClass,
+                                scores: this.createDefault25Scores()
+                            };
+                            this.students.push(newStudent);
+                            await this.saveStudentToCloud(newStudent);
+                            addedCount++;
+                        }
+                    }
+
+                    this.students = this.sortStudentsByName(this.students);
+                    this.saveLocalFallback();
+                    this.closeModal('excelImport');
+                    this.showToast(`Berhasil mengimpor! (${addedCount} Ditambahkan, ${updatedCount} Diperbarui)`);
+                },
+
+                exportStudentsToExcel(targetClassFilter = null) {
+                    let list = this.sortStudentsByName(this.students);
+                    if (targetClassFilter) {
+                        list = list.filter(s => s.kelas === targetClassFilter);
+                    } else if (this.selectedClass !== 'All') {
+                        list = list.filter(s => s.kelas === this.selectedClass);
+                    }
+
+                    if (list.length === 0) {
+                        this.showToast('Tidak ada data siswa untuk diexport.');
+                        return;
+                    }
+
+                    const exportRows = list.map((st, idx) => {
+                        const s = st.scores || {};
+                        const rowObj = {
+                            "No": idx + 1,
+                            "Kelas": st.kelas,
+                            "NIS / NISN": st.nis,
+                            "Nama Lengkap Siswa": st.nama,
+                            "L/P": st.gender,
+                        };
+
+                        const elems = [
+                            { prefix: 'q', label: 'Qur-an' },
+                            { prefix: 'aq', label: 'Akidah' },
+                            { prefix: 'ak', label: 'Akhlak' },
+                            { prefix: 'fq', label: 'Fiqih' },
+                            { prefix: 'sp', label: 'SPI' }
+                        ];
+
+                        elems.forEach(el => {
+                            for (let i = 1; i <= 5; i++) {
+                                rowObj[`NH ${i} (${el.label})`] = s[el.prefix + i] || 0;
+                            }
+                            rowObj[`Rata ${el.label}`] = parseFloat(this.calcElemAvg(s, el.prefix));
+                        });
+
+                        rowObj["Rerata Total NH"] = parseFloat(this.calcRerataNH(s));
+                        rowObj["PTS"] = s.pts || 0;
+                        rowObj["PAS"] = s.pas || 0;
+                        const na = this.calcNA(s);
+                        rowObj["Nilai Akhir (NA)"] = parseFloat(na);
+                        rowObj["Predikat"] = this.getPredikat(na);
+                        rowObj["Deskripsi Capaian Kompetensi"] = this.generateDescription(st);
+
+                        return rowObj;
+                    });
+
+                    const worksheet = XLSX.utils.json_to_sheet(exportRows);
+                    const workbook = XLSX.utils.book_new();
+                    XLSX.utils.book_append_sheet(workbook, worksheet, "Nilai 25 NH PAI");
+
+                    const fileName = targetClassFilter
+                        ? `Rekap_Nilai_PAI_${targetClassFilter.replace(' ', '_')}_${this.workspaceId}.xlsx`
+                        : `Data_Nilai_25NH_PAI_${this.workspaceId}.xlsx`;
+
+                    XLSX.writeFile(workbook, fileName);
+                    this.showToast('Data 25 Nilai Harian PAI berhasil diekspor ke Excel!');
+                },
+
+                loadDefaultStudents(syncCloud = true) {
+                    const sampleNames = {
+                        1: ["Ahmad Zaki", "Aisyah Humaira", "Bilal Ramadan", "Dania Putri", "Faris Al-Fatih", "Hafiz Ridwan", "Khadijah Azzahra", "Muhammad Evan", "Nabila Syakira", "Omar Abdullah", "Rania Kirana", "Salman Al-Farisi", "Tania Salsabila", "Yusuf Mansur", "Zahra Amalia", "Akmal Fauzi", "Bunga Rizky", "Cinta Laura"],
+                        2: ["Aditya Pratama", "Annisa Rahma", "Bagas Saputra", "Citra Kirana", "Danish Rayyan", "Fatimah Az-Zahra", "Gilang Ramadhan", "Hana Pertiwi", "Ibrahim Malik", "Jihan Fahira", "Kenzo Ardiansyah", "Laila Majnun", "Miftahuddin", "Nayla Syarifah", "Rizky Kurniadi", "Siti Aminah", "Taufik Hidayat"],
+                        3: ["Aldo Rizky", "Alya Maulida", "Arfan Syahputra", "Daffa Ibnu", "Elisa Rahmania", "Fathan Al-Ghazali", "Ghina Saniya", "Hasan Basri", "Intan Permata", "Kemal Pasha", "Latifah Zahra", "Maulana Malik", "Nissa Sabyan", "Okta Viani", "Raihan Ahmad", "Syafiq Reza", "Tri Lestari", "Umar Al-Faruq"],
+                        4: ["Andi Wijaya", "Bella Safira", "Cakra Khan", "Dian Sastrowardoyo", "Eko Prasetyo", "Fitri Syahrini", "Gading Marten", "Hesti Purwadinata", "Indra Bekti", "Jasmine Noor", "Kafi Ridwan", "Lesti Kejora", "Muzakki Ramdhan", "Nadia Vega", "Olga Syahputra", "Prilly Latuconsina", "Qori Sandioriva"],
+                        5: ["Alya Rohali", "Baim Wong", "Charly Van Houten", "Desy Ratnasari", "Eza Gionino", "Fatin Shidqia", "Gito Rollies", "Inneke Koesherawati", "Jefri Nichol", "Kartika Putri", "Lukman Sardi", "Marshanda", "Nabila Syakieb", "Opick Tombo Ati", "Pasha Ungu", "Raffi Ahmad", "Rossa Roslaina", "Siti Nurhaliza"],
+                        6: ["Agnez Mo", "Arie Untung", "Dewi Sandra", "Dude Harlino", "Ebiet G. Ade", "Fenita Arie", "Irwansyah", "Zaskia Sungkar", "Shireen Sungkar", "Teuku Wisnu", "Oky Setiana Dewi", "Ria Ricis", "Syakir Daulay", "Abidzar Al-Ghifari", "Umi Pipik", "Atta Halilintar", "Aureli Hermansyah"]
+                    };
+
+                    let list = [];
+
+                    for (let c = 1; c <= 6; c++) {
+                        const names = sampleNames[c];
+                        names.forEach((nama, idx) => {
+                            list.push({
+                                id: 'st_' + c + '_' + (idx + 1),
+                                nis: '20260' + c + String(idx + 1).padStart(2, '0'),
+                                nama: nama,
+                                gender: (idx % 2 === 0) ? 'L' : 'P',
+                                kelas: 'Kelas ' + c,
+                                scores: this.createDefault25Scores()
+                            });
+                        });
+                    }
+                    this.students = this.sortStudentsByName(list);
+                    this.saveLocalFallback();
+                    if (syncCloud) {
+                        for (const st of this.students) {
+                            this.saveStudentToCloud(st);
+                        }
+                    }
+                },
+
+                loadDefaultTP(syncCloud = true) {
+                    const tpSamples = [];
+                    let idCount = 1;
+                    const defaultTPs = [
+                        { c: 1, el: "Al-Qur'an & Hadits", k: "TP 1.1", d: "Membaca Surah Al-Fatihah dengan tartil dan menghafalnya dengan benar." },
+                        { c: 1, el: "Akidah", k: "TP 1.2", d: "Mengenal Enam Rukun Iman dan Asmaul Husna Ar-Rahman Ar-Rahim." },
+                        { c: 1, el: "Akhlak", k: "TP 1.3", d: "Menerapkan adab kasih sayang kepada orang tua, guru, dan teman." },
+                        { c: 1, el: "Fiqih", k: "TP 1.4", d: "Mengenal tata cara Rukun Islam dan tata cara bersuci (taharah/wudu)." },
+                        { c: 1, el: "Sejarah Peradaban Islam (SPI)", k: "TP 1.5", d: "Mengenal kisah keteladanan Nabi Muhammad SAW masa kanak-kanak." },
+
+                        { c: 2, el: "Al-Qur'an & Hadits", k: "TP 2.1", d: "Membaca dan menghafal Surah An-Nas dan Surah Al-Falaq." },
+                        { c: 2, el: "Akidah", k: "TP 2.2", d: "Mengenal sifat-sifat wajib bagi Allah SWT dan Asmaul Husna Al-Quddus." },
+                        { c: 2, el: "Akhlak", k: "TP 2.3", d: "Menerapkan perilaku santun, jujur, dan berterima kasih dalam sehari-hari." },
+                        { c: 2, el: "Fiqih", k: "TP 2.4", d: "Mempraktikkan gerakan dan bacaan shalat fardu dengan benar." },
+                        { c: 2, el: "Sejarah Peradaban Islam (SPI)", k: "TP 2.5", d: "Mengenal kisah Nabi Nuh a.s dan mukjizat perahu penyelamat." },
+
+                        { c: 3, el: "Al-Qur'an & Hadits", k: "TP 3.1", d: "Membaca Surah Al-Kausar dan memahaminya secara sederhana." },
+                        { c: 3, el: "Akidah", k: "TP 3.2", d: "Meyakini keberadaan malaikat-malaikat Allah SWT dan tugasnya." },
+                        { c: 3, el: "Akhlak", k: "TP 3.3", d: "Menerapkan perilaku tolong-menolong dan menghargai perbedaan." },
+                        { c: 3, el: "Fiqih", k: "TP 3.4", d: "Mengenal syarat sah dan rukun shalat serta zikir setelah shalat." },
+                        { c: 3, el: "Sejarah Peradaban Islam (SPI)", k: "TP 3.5", d: "Mengenal keteladanan Nabi Ibrahim a.s dan Nabi Ismail a.s." },
+
+                        { c: 4, el: "Al-Qur'an & Hadits", k: "TP 4.1", d: "Membaca Surah Al-Hujurat ayat 13 tentang keberagaman manusia." },
+                        { c: 4, el: "Akidah", k: "TP 4.2", d: "Mengenal Kitab-kitab Allah SWT yang diturunkan kepada para Rasul." },
+                        { c: 4, el: "Akhlak", k: "TP 4.3", d: "Menerapkan sikap amanah, jujur, dan menghormati sesama." },
+                        { c: 4, el: "Fiqih", k: "TP 4.4", d: "Memahami tata cara shalat Jumat, Dhuha, dan Tahajud." },
+                        { c: 4, el: "Sejarah Peradaban Islam (SPI)", k: "TP 4.5", d: "Mengenal peristiwa Isra Mi'raj Nabi Muhammad SAW." },
+
+                        { c: 5, el: "Al-Qur'an & Hadits", k: "TP 5.1", d: "Membaca dan menghafal Surah At-Tin dengan tajwid yang tepat." },
+                        { c: 5, el: "Akidah", k: "TP 5.2", d: "Mengenal Hari Akhir (Kiamat) dan tanda-tanda kebesarannya." },
+                        { c: 5, el: "Akhlak", k: "TP 5.3", d: "Meneladani sikap pantang menyerah dan saling menasehati dalam kebaikan." },
+                        { c: 5, el: "Fiqih", k: "TP 5.4", d: "Memahami hukum dan tata cara ibadah puasa Ramadan dan zakat fitrah." },
+                        { c: 5, el: "Sejarah Peradaban Islam (SPI)", k: "TP 5.5", d: "Mengenal perjuangan Khulafaur Rasyidin dalam membela Islam." },
+
+                        { c: 6, el: "Al-Qur'an & Hadits", k: "TP 6.1", d: "Membaca Surah Al-Ma'un dan menerapkannya dalam empati sosial." },
+                        { c: 6, el: "Akidah", k: "TP 6.2", d: "Meyakini Qada dan Qadar Allah SWT dalam kehidupan sehari-hari." },
+                        { c: 6, el: "Akhlak", k: "TP 6.3", d: "Menjauhi perilaku sombong, iri, dengki, dan membiasakan rendah hati." },
+                        { c: 6, el: "Fiqih", k: "TP 6.4", d: "Memahami tata cara penyembelihan hewan kurban dan ibadah Haji." },
+                        { c: 6, el: "Sejarah Peradaban Islam (SPI)", k: "TP 6.5", d: "Meneladani peristiwa Haji Wada' dan pesan-pesan terakhir Rasulullah SAW." }
+                    ];
+
+                    defaultTPs.forEach(item => {
+                        tpSamples.push({
+                            id: 'tp_' + idCount++,
+                            kelas: 'Kelas ' + item.c,
+                            elemen: item.el,
+                            kode: item.k,
+                            deskripsi: item.d
+                        });
+                    });
+
+                    this.tpList = tpSamples;
+                    this.saveLocalFallback();
+                    if (syncCloud) {
+                        for (const tp of tpSamples) {
+                            this.saveTPToCloud(tp);
+                        }
+                    }
+                },
+
+                async resetToDefaultData() {
+                    const currentPass = this.school.loginPassword || 'pai123';
+                    for (const st of this.students) {
+                        await this.deleteStudentFromCloud(st.id);
+                    }
+                    for (const tp of this.tpList) {
+                        await this.deleteTPFromCloud(tp.id);
+                    }
+                    this.loadDefaultStudents(true);
+                    this.loadDefaultTP(true);
+                    this.school.loginPassword = currentPass;
+                    this.printDateManual = this.getCurrentDateFormatted();
+                    await this.saveSchoolToCloud();
+                    this.showToast('Data berhasil di-reset ke data default!');
+                },
+
+                logoutSimulated() {
+                    this.isAuthenticated = false;
+                    this.sidebarOnlyMode = true;
+                    this.activeTab = '';
+                    this.loginPasswordInput = '';
+                    this.loginError = '';
+                    this.showToast('Anda telah keluar dari aplikasi.');
+                },
+
+                get filteredStudents() {
+                    return this.sortStudentsByName(this.students).filter(st => {
+                        const matchClass = this.selectedClass === 'All' || st.kelas === this.selectedClass;
+                        const matchSearch = (st.nama || '').toLowerCase().includes(this.searchStudent.toLowerCase()) || String(st.nis || '').includes(this.searchStudent);
+                        return matchClass && matchSearch;
+                    });
+                },
+
+                get filteredTP() {
+                    return this.tpList.filter(tp => {
+                        const matchClass = this.tpFilterClass === 'All' || tp.kelas === this.tpFilterClass;
+                        const matchElem = this.tpFilterElement === 'All' || tp.elemen === this.tpFilterElement;
+                        return matchClass && matchElem;
+                    });
+                },
+
+                get currentClassStudents() {
+                    return this.sortStudentsByName(this.students).filter(st => st.kelas === this.selectedInputClass);
+                },
+
+                get printClassStudents() {
+                    return this.sortStudentsByName(this.students).filter(st => st.kelas === this.selectedPrintClass);
+                },
+
+                calcElemAvg(s, prefix) {
+                    if (!s) return '0.0';
+                    let sum = 0;
+                    for (let i = 1; i <= 5; i++) {
+                        sum += Number(s[prefix + i]) || 0;
+                    }
+                    return (sum / 5).toFixed(1);
+                },
+
+                calcRerataNH(s) {
+                    if (!s) return '0.0';
+                    const avgQ = parseFloat(this.calcElemAvg(s, 'q'));
+                    const avgAQ = parseFloat(this.calcElemAvg(s, 'aq'));
+                    const avgAK = parseFloat(this.calcElemAvg(s, 'ak'));
+                    const avgFQ = parseFloat(this.calcElemAvg(s, 'fq'));
+                    const avgSP = parseFloat(this.calcElemAvg(s, 'sp'));
+
+                    const total = (avgQ + avgAQ + avgAK + avgFQ + avgSP) / 5;
+                    return total.toFixed(1);
+                },
+
+                calcNA(s) {
+                    if (!s) return '0.0';
+                    const nh = parseFloat(this.calcRerataNH(s));
+                    const pts = Number(s.pts) || 0;
+                    const pas = Number(s.pas) || 0;
+
+                    const na = (nh + pts + pas) / 3;
+                    return na.toFixed(1);
+                },
+
+                getPredikat(na) {
+                    const score = parseFloat(na);
+                    if (score >= 88) return 'A';
+                    if (score >= 78) return 'B';
+                    if (score >= 68) return 'C';
+                    return 'D';
+                },
+
+                generateDescription(st) {
+                    const s = st.scores;
+                    if (!s) return '-';
+                    const elems = [
+                        { name: "Al-Qur'an & Hadits", score: parseFloat(this.calcElemAvg(s, 'q')) },
+                        { name: "Akidah", score: parseFloat(this.calcElemAvg(s, 'aq')) },
+                        { name: "Akhlak", score: parseFloat(this.calcElemAvg(s, 'ak')) },
+                        { name: "Fiqih", score: parseFloat(this.calcElemAvg(s, 'fq')) },
+                        { name: "SPI", score: parseFloat(this.calcElemAvg(s, 'sp')) }
+                    ];
+
+                    elems.sort((a, b) => b.score - a.score);
+                    const highest = elems[0];
+                    const lowest = elems[elems.length - 1];
+
+                    if (highest.score >= 85) {
+                        if (lowest.score >= 78) {
+                            return `Sangat baik dalam penguasaan elemen ${highest.name} dan ${lowest.name}.`;
+                        } else {
+                            return `Sangat baik dalam penguasaan elemen ${highest.name}, perlu bimbingan pada ${lowest.name}.`;
+                        }
+                    } else if (highest.score >= 75) {
+                        return `Menunjukkan penguasaan yang baik terutama pada elemen ${highest.name}.`;
+                    } else {
+                        return `Perlu bimbingan intensif pada seluruh elemen pembelajaran PAI.`;
+                    }
+                },
+
+                calculateSchoolAverage() {
+                    if (this.students.length === 0) return '0.0';
+                    let totalNA = 0;
+                    this.students.forEach(st => {
+                        totalNA += parseFloat(this.calcNA(st.scores));
+                    });
+                    return (totalNA / this.students.length).toFixed(1);
+                },
+
+                calcClassAverage(kelasName) {
+                    const classSts = this.students.filter(s => s.kelas === kelasName);
+                    if (classSts.length === 0) return '0.0';
+                    let sum = 0;
+                    classSts.forEach(st => {
+                        sum += parseFloat(this.calcNA(st.scores));
+                    });
+                    return (sum / classSts.length).toFixed(1);
+                },
+
+                getCurrentDateFormatted() {
+                    const months = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
+                    const d = new Date();
+                    return d.getDate() + ' ' + months[d.getMonth()] + ' ' + d.getFullYear();
+                },
+
+                async saveStudentForm() {
+                    if (!this.formStudent.nama) {
+                        this.showToast('Nama siswa tidak boleh kosong!');
+                        return;
+                    }
+
+                    if (this.formStudent.id) {
+                        const idx = this.students.findIndex(s => s.id === this.formStudent.id);
+                        if (idx !== -1) {
+                            this.students[idx].nis = this.formStudent.nis;
+                            this.students[idx].nama = this.formStudent.nama;
+                            this.students[idx].gender = this.formStudent.gender;
+                            this.students[idx].kelas = this.formStudent.kelas;
+                            const updatedStudent = this.students[idx];
+                            this.students = this.sortStudentsByName(this.students);
+                            await this.saveStudentToCloud(updatedStudent);
+                        }
+                    } else {
+                        const newStudent = {
+                            id: String(Date.now()),
+                            nis: this.formStudent.nis || this.generateNIS(),
+                            nama: this.formStudent.nama,
+                            gender: this.formStudent.gender,
+                            kelas: this.formStudent.kelas,
+                            scores: this.createDefault25Scores()
+                        };
+                        this.students = this.sortStudentsByName([...this.students, newStudent]);
+                        await this.saveStudentToCloud(newStudent);
+                    }
+
+                    this.closeModal('student');
+                    this.showToast('Data siswa berhasil disimpan!');
+                },
+
+                editStudent(st) {
+                    this.formStudent = JSON.parse(JSON.stringify(st));
+                    this.modals.student = true;
+                },
+
+                async deleteStudent(id) {
+                    if (this.cloudUser && this.db) {
+                        const fm = window.firebaseModules;
+                        const metaRef = fm.doc(this.db, 'artifacts', this.appId, 'public', 'data', `pai_settings_${this.workspaceId}`, 'meta');
+                        await fm.setDoc(metaRef, { studentsInitialized: true }, { merge: true });
+                    }
+                    this.students = this.students.filter(s => s.id !== id);
+                    await this.deleteStudentFromCloud(id);
+                    this.showToast('Data siswa berhasil dihapus.');
+                },
+
+                async saveTPForm() {
+                    if (!this.formTP.deskripsi || !this.formTP.deskripsi.trim()) {
+                        this.showToast('Deskripsi TP harus diisi!');
+                        return;
+                    }
+
+                    const payload = {
+                        kelas: this.formTP.kelas,
+                        elemen: this.formTP.elemen,
+                        kode: (this.formTP.kode || '').trim() || ('TP-' + Date.now()),
+                        deskripsi: this.formTP.deskripsi.trim()
+                    };
+
+                    if (this.formTP.id) {
+                        const idx = this.tpList.findIndex(t => t.id === this.formTP.id);
+                        if (idx !== -1) {
+                            const updatedTP = { ...payload, id: String(this.formTP.id) };
+                            this.tpList[idx] = updatedTP;
+                            this.tpList = [...this.tpList];
+                            await this.saveTPToCloud(updatedTP);
+                        }
+                    } else {
+                        const uniqueId = 'tp_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
+                        const newTP = { ...payload, id: uniqueId };
+                        this.tpList = [...this.tpList, newTP];
+                        await this.saveTPToCloud(newTP);
+                    }
+
+                    this.closeModal('tp');
+                    this.showToast('Tujuan Pembelajaran disimpan!');
+                },
+
+                editTP(tp) {
+                    this.formTP = JSON.parse(JSON.stringify(tp));
+                    this.modals.tp = true;
+                },
+
+                async deleteTP(id) {
+                    this.tpList = this.tpList.filter(t => t.id !== id);
+                    await this.deleteTPFromCloud(id);
+                    this.showToast('TP berhasil dihapus.');
+                }
+            }
+        }
+    </script>
+</body>
+</html>
